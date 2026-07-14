@@ -1,0 +1,18 @@
+// PROFILE INSIGHT / ANALYTICS MODEL
+model ProfileInsight {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+
+  profileViews       Int @default(0)
+  likesReceived      Int @default(0)
+  superLikesReceived Int @default(0)
+  matchesCount       Int @default(0)
+  profileCompletion  Int @default(0)
+
+  lastActiveAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

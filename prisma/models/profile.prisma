@@ -1,0 +1,80 @@
+// PROFILE ENUMS
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum InterestedIn {
+  MALE
+  FEMALE
+  EVERYONE
+}
+
+enum DatingIntent {
+  LONG_TERM
+  SHORT_TERM
+  FRIENDSHIP
+  CASUAL
+  NOT_SURE
+}
+
+// MAIN DATING PROFILE MODEL
+model Profile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @unique @db.ObjectId
+
+  displayName  String
+  dateOfBirth  DateTime
+  gender       Gender
+  interestedIn InterestedIn
+
+  bio String?
+
+  // For discovery/search algorithm
+  interests          String[]
+  interestCategories String[]
+
+  // User selected interests as array of objects
+  interestDetails InterestDetail[]
+
+  // ImageKit uploaded profile images
+  photos ProfilePhoto[]
+
+  city      String?
+  latitude  Float?
+  longitude Float?
+
+  datingIntent DatingIntent @default(NOT_SURE)
+
+  education String?
+  jobTitle  String?
+  company   String?
+  height    Int?
+  languages String[]
+
+  minAge      Int @default(18)
+  maxAge      Int @default(60)
+  maxDistance Int @default(50)
+
+  isProfileCompleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ARRAY OF OBJECTS FOR INTERESTS
+type InterestDetail {
+  category String
+  options  String[]
+}
+
+// ARRAY OF OBJECTS FOR IMAGEKIT FILES
+type ProfilePhoto {
+  url       String
+  filename  String
+  fileId    String
+  isPrimary Boolean @default(false)
+}
