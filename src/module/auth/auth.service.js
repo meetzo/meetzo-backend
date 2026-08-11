@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import userModel from "../../models/userModel.js";
+import mongoose from "mongoose";
 import { generateToken } from "../../utils/generate.token.js";
 import ApiError from "../../utils/api.error.js";
 import { generateOtp } from "../../utils/generate.otp.js";
@@ -149,19 +150,13 @@ export const signupService = async ({ name, email, phone }) => {
   };
 };
 
-export const verifyOtpService = async ({
-  otpToken,
-  otp,
-}) => {
+export const verifyOtpService = async ({ otpToken, otp }) => {
   // ---------------------------------------
   // VALIDATION
   // ---------------------------------------
 
   if (!otpToken || !otp) {
-    throw new ApiError(
-      400,
-      "OTP token and OTP are required"
-    );
+    throw new ApiError(400, "OTP token and OTP are required");
   }
 
   // ---------------------------------------
@@ -171,87 +166,56 @@ export const verifyOtpService = async ({
   let payload;
 
   try {
-    payload = jwt.verify(
-      otpToken,
-      process.env.OTP_TOKEN_SECRET
-    );
+    payload = jwt.verify(otpToken, process.env.OTP_TOKEN_SECRET);
   } catch (error) {
     throw new ApiError(
       400,
-      "OTP session expired or invalid. Please request a new OTP"
+      "OTP session expired or invalid. Please request a new OTP",
     );
   }
 
-  const normalizedEmail =
-    payload.email
-      .trim()
-      .toLowerCase();
+  const normalizedEmail = payload.email.trim().toLowerCase();
 
   // ---------------------------------------
   // FIND USER
   // ---------------------------------------
 
-  const user =
-    await userModel
-      .findOne({
-        email: normalizedEmail,
-      })
-      .select("+otp +otpExpiry");
+  const user = await userModel
+    .findOne({
+      email: normalizedEmail,
+    })
+    .select("+otp +otpExpiry");
 
   if (!user) {
-    throw new ApiError(
-      404,
-      "User not found"
-    );
+    throw new ApiError(404, "User not found");
   }
 
   if (user.isBlocked) {
-    throw new ApiError(
-      403,
-      "Your account has been blocked"
-    );
+    throw new ApiError(403, "Your account has been blocked");
   }
 
   // ---------------------------------------
   // CHECK OTP EXISTS
   // ---------------------------------------
 
-  if (
-    !user.otp ||
-    !user.otpExpiry
-  ) {
-    throw new ApiError(
-      400,
-      "No OTP requested. Please request a new OTP"
-    );
+  if (!user.otp || !user.otpExpiry) {
+    throw new ApiError(400, "No OTP requested. Please request a new OTP");
   }
 
   // ---------------------------------------
   // VERIFY OTP
   // ---------------------------------------
 
-  if (
-    String(otp) !==
-    String(user.otp)
-  ) {
-    throw new ApiError(
-      400,
-      "Invalid OTP"
-    );
+  if (String(otp) !== String(user.otp)) {
+    throw new ApiError(400, "Invalid OTP");
   }
 
   // ---------------------------------------
   // CHECK OTP EXPIRY
   // ---------------------------------------
 
-  if (
-    new Date() >
-    user.otpExpiry
-  ) {
-    throw new ApiError(
-      400,
-      "OTP has expired. Please request a new one"
-    );
+  if (new Date() > user.otpExpiry) {
+    throw new ApiError(400, "OTP has expired. Please request a new one");
   }
 
   // ---------------------------------------
@@ -269,10 +233,7 @@ export const verifyOtpService = async ({
   // GENERATE LOGIN TOKEN
   // ---------------------------------------
 
-  const token =
-    generateToken(
-      user._id.toString()
-    );
+  const token = generateToken(user._id.toString());
 
   // ---------------------------------------
   // SAFE RESPONSE
@@ -289,42 +250,30 @@ export const verifyOtpService = async ({
 
     role: user.role,
 
-    isVerified:
-      user.isVerified,
+    isVerified: user.isVerified,
 
-    isBlocked:
-      user.isBlocked,
+    isBlocked: user.isBlocked,
 
-    createdAt:
-      user.createdAt,
+    createdAt: user.createdAt,
   };
 
   return {
     success: true,
 
-    message:
-      "OTP verified successfully.",
+    message: "OTP verified successfully.",
 
     token,
 
-    user:
-      safeUser,
+    user: safeUser,
   };
 };
 // Login service
-export const loginService = async ({
-  email,
-  password,
-}) => {
+export const loginService = async ({ email, password }) => {
   if (!email || !password) {
-    throw new ApiError(
-      400,
-      "Email and password are required"
-    );
+    throw new ApiError(400, "Email and password are required");
   }
 
-  const normalizedEmail =
-    email.trim().toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
 
   // ---------------------------------------
   // FIND USER
@@ -337,10 +286,7 @@ export const loginService = async ({
     .select("+password");
 
   if (!user) {
-    throw new ApiError(
-      401,
-      "Invalid email or password"
-    );
+    throw new ApiError(401, "Invalid email or password");
   }
 
   // ---------------------------------------
@@ -348,10 +294,7 @@ export const loginService = async ({
   // ---------------------------------------
 
   if (user.isBlocked) {
-    throw new ApiError(
-      403,
-      "Your account has been blocked"
-    );
+    throw new ApiError(403, "Your account has been blocked");
   }
 
   // ---------------------------------------
@@ -359,10 +302,7 @@ export const loginService = async ({
   // ---------------------------------------
 
   if (!user.isVerified) {
-    throw new ApiError(
-      403,
-      "Please verify your account before login"
-    );
+    throw new ApiError(403, "Please verify your account before login");
   }
 
   // ---------------------------------------
@@ -370,90 +310,59 @@ export const loginService = async ({
   // ---------------------------------------
 
   if (!user.password) {
-    throw new ApiError(
-      400,
-      "Password is not set for this account"
-    );
+    throw new ApiError(400, "Password is not set for this account");
   }
 
-  const isPasswordMatch =
-    await bcrypt.compare(
-      password,
-      user.password
-    );
+  const isPasswordMatch = await bcrypt.compare(password, user.password);
 
   if (!isPasswordMatch) {
-    throw new ApiError(
-      401,
-      "Invalid email or password"
-    );
+    throw new ApiError(401, "Invalid email or password");
   }
 
   // ---------------------------------------
   // GENERATE TOKEN
   // ---------------------------------------
 
-  const token = generateToken(
-    user._id.toString()
-  );
+  const token = generateToken(user._id.toString());
 
   return {
     success: true,
 
-    message:
-      "Login successful",
+    message: "Login successful",
 
     token,
 
-    user:
-      sanitizeUser(user),
+    user: sanitizeUser(user),
   };
 };
-export const getUserByIdService =
-  async (userId) => {
-    if (!userId) {
-      throw new ApiError(
-        400,
-        "User ID is required"
-      );
-    }
+export const getUserByIdService = async (userId) => {
+  if (!userId) {
+    throw new ApiError(400, "User ID is required");
+  }
 
-    // ---------------------------------------
-    // VALIDATE MONGODB ID
-    // ---------------------------------------
+  // ---------------------------------------
+  // VALIDATE MONGODB ID
+  // ---------------------------------------
 
-    if (
-      !mongoose.Types.ObjectId.isValid(
-        userId
-      )
-    ) {
-      throw new ApiError(
-        400,
-        "Invalid User ID"
-      );
-    }
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    throw new ApiError(400, "Invalid User ID");
+  }
 
-    // ---------------------------------------
-    // FIND USER
-    // ---------------------------------------
+  // ---------------------------------------
+  // FIND USER
+  // ---------------------------------------
 
-    const user = await userModel
-      .findById(userId)
-      .select(
-        "name email phone role isVerified isBlocked createdAt"
-      );
+  const user = await userModel
+    .findById(userId)
+    .select("name email phone role isVerified isBlocked createdAt");
 
-    if (!user) {
-      throw new ApiError(
-        404,
-        "User not found"
-      );
-    }
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
 
-    return {
-      success: true,
+  return {
+    success: true,
 
-      user:
-        sanitizeUser(user),
-    };
+    user: sanitizeUser(user),
   };
+};
