@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { prisma } from "../../config/prisma.js";
+import userModel from "../../models/userModel.js";
 import { generateToken } from "../../utils/generate.token.js";
 import ApiError from "../../utils/api.error.js";
 import { generateOtp } from "../../utils/generate.otp.js";
@@ -30,172 +30,430 @@ const generateOtpToken = (email) => {
   });
 };
 
-export const signupService = async ({ name, email, phone }) =>{
+export const signupService = async ({ name, email, phone }) => {
+  // ---------------------------------------
+  // VALIDATION
+  // ---------------------------------------
+
   if (!name || !email || !phone) {
     throw new ApiError(400, "Name, email and phone are required");
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
-  const normalizedPhone = phone.trim();
   const trimmedName = name.trim();
 
-  const existingUser = await prisma.user.findFirst({
-    where: {
-      OR: [{ email: normalizedEmail }, { phone: normalizedPhone }],
-    },
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const normalizedPhone = phone.trim();
+
+  // ---------------------------------------
+  // CHECK EXISTING USER
+  // ---------------------------------------
+
+  const existingUser = await userModel.findOne({
+    $or: [
+      {
+        email: normalizedEmail,
+      },
+      {
+        phone: normalizedPhone,
+      },
+    ],
   });
 
   if (existingUser) {
     throw new ApiError(409, "User already exists with this email or phone");
   }
 
+  // ---------------------------------------
+  // GENERATE OTP
+  // ---------------------------------------
+
   const otp = generateOtp();
+
   const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-  const user = await prisma.user.create({
-    data: {
-      name: trimmedName,
-      email: normalizedEmail,
-      phone: normalizedPhone,
-      otp,
-      otpExpiry,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      role: true,
-      isVerified: true,
-      isBlocked: true,
-      createdAt: true,
-    },
+  // ---------------------------------------
+  // CREATE USER
+  // ---------------------------------------
+
+  const user = await userModel.create({
+    name: trimmedName,
+
+    email: normalizedEmail,
+
+    phone: normalizedPhone,
+
+    otp,
+
+    otpExpiry,
+
+    isVerified: false,
+
+    isBlocked: false,
   });
 
-  await sendOtpEmail(normalizedEmail, otp);
+  try {
+    // ---------------------------------------
+    // SEND OTP EMAIL
+    // ---------------------------------------
+
+    await sendOtpEmail(normalizedEmail, otp);
+  } catch (error) {
+    /*
+     * If email sending fails,
+     * remove the newly created unverified user.
+     *
+     * Otherwise next signup attempt would say
+     * "User already exists".
+     */
+
+    await userModel.findByIdAndDelete(user._id);
+
+    throw new ApiError(500, "Unable to send OTP. Please try again.");
+  }
+
+  // ---------------------------------------
+  // OTP SESSION TOKEN
+  // ---------------------------------------
 
   const otpToken = generateOtpToken(normalizedEmail);
 
+  // ---------------------------------------
+  // RESPONSE
+  // ---------------------------------------
+
   return {
+    success: true,
+
     message: "OTP sent to your email. Please verify to complete signup.",
+
     otpToken,
-    user,
+
+    user: {
+      id: user._id,
+
+      name: user.name,
+
+      email: user.email,
+
+      phone: user.phone,
+
+      role: user.role,
+
+      isVerified: user.isVerified,
+
+      isBlocked: user.isBlocked,
+
+      createdAt: user.createdAt,
+    },
   };
 };
 
-export const verifyOtpService = async ({ otpToken, otp }) => {
-  if (!otpToken || !otp) {
-    throw new ApiError(400, "OTP token and OTP are required");
-  }
+export const verifyOtpService = async ({
+  otpToken,
+  otp,
+}) => {
+  // ---------------------------------------
+  // VALIDATION
+  // ---------------------------------------
 
-  let payload;
-  try {
-    payload = jwt.verify(otpToken, process.env.OTP_TOKEN_SECRET);
-  } catch (err) {
+  if (!otpToken || !otp) {
     throw new ApiError(
       400,
-      "OTP session expired or invalid. Please request a new OTP",
+      "OTP token and OTP are required"
     );
   }
 
-  const normalizedEmail = payload.email;
+  // ---------------------------------------
+  // VERIFY OTP TOKEN
+  // ---------------------------------------
 
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-  });
-  if (!user) throw new ApiError(404, "User not found");
-  if (user.isBlocked) throw new ApiError(403, "Your account has been blocked");
+  let payload;
 
-  if (!user.otp || !user.otpExpiry) {
-    throw new ApiError(400, "No OTP requested. Please request a new OTP");
+  try {
+    payload = jwt.verify(
+      otpToken,
+      process.env.OTP_TOKEN_SECRET
+    );
+  } catch (error) {
+    throw new ApiError(
+      400,
+      "OTP session expired or invalid. Please request a new OTP"
+    );
   }
 
-  if (String(otp) !== user.otp) {
-    throw new ApiError(400, "Invalid OTP");
-  }
+  const normalizedEmail =
+    payload.email
+      .trim()
+      .toLowerCase();
 
-  if (new Date() > user.otpExpiry) {
-    throw new ApiError(400, "OTP has expired. Please request a new one");
-  }
+  // ---------------------------------------
+  // FIND USER
+  // ---------------------------------------
 
-  const updatedUser = await prisma.user.update({
-    where: { email: normalizedEmail },
-    data: { isVerified: true, otp: null, otpExpiry: null },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      role: true,
-      isVerified: true,
-      isBlocked: true,
-      createdAt: true,
-    },
-  });
-
-  const token = generateToken(updatedUser.id);
-
-  return { token, user: updatedUser };
-};
-// Login service
-export const loginService = async ({ email, password }) => {
-  if (!email || !password) {
-    throw new ApiError(400, "Email and password are required");
-  }
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const user = await prisma.user.findUnique({
-    where: {
-      email: normalizedEmail,
-    },
-  });
+  const user =
+    await userModel
+      .findOne({
+        email: normalizedEmail,
+      })
+      .select("+otp +otpExpiry");
 
   if (!user) {
-    throw new ApiError(401, "Invalid email or password");
+    throw new ApiError(
+      404,
+      "User not found"
+    );
   }
 
   if (user.isBlocked) {
-    throw new ApiError(403, "Your account has been blocked");
+    throw new ApiError(
+      403,
+      "Your account has been blocked"
+    );
   }
 
-  const isPasswordMatch = await bcrypt.compare(password, user.password);
+  // ---------------------------------------
+  // CHECK OTP EXISTS
+  // ---------------------------------------
 
-  if (!isPasswordMatch) {
-    throw new ApiError(401, "Invalid email or password");
+  if (
+    !user.otp ||
+    !user.otpExpiry
+  ) {
+    throw new ApiError(
+      400,
+      "No OTP requested. Please request a new OTP"
+    );
   }
 
-  const token = generateToken(user.id);
+  // ---------------------------------------
+  // VERIFY OTP
+  // ---------------------------------------
+
+  if (
+    String(otp) !==
+    String(user.otp)
+  ) {
+    throw new ApiError(
+      400,
+      "Invalid OTP"
+    );
+  }
+
+  // ---------------------------------------
+  // CHECK OTP EXPIRY
+  // ---------------------------------------
+
+  if (
+    new Date() >
+    user.otpExpiry
+  ) {
+    throw new ApiError(
+      400,
+      "OTP has expired. Please request a new one"
+    );
+  }
+
+  // ---------------------------------------
+  // UPDATE USER
+  // ---------------------------------------
+
+  user.isVerified = true;
+
+  user.otp = undefined;
+  user.otpExpiry = undefined;
+
+  await user.save();
+
+  // ---------------------------------------
+  // GENERATE LOGIN TOKEN
+  // ---------------------------------------
+
+  const token =
+    generateToken(
+      user._id.toString()
+    );
+
+  // ---------------------------------------
+  // SAFE RESPONSE
+  // ---------------------------------------
+
+  const safeUser = {
+    id: user._id,
+
+    name: user.name,
+
+    email: user.email,
+
+    phone: user.phone,
+
+    role: user.role,
+
+    isVerified:
+      user.isVerified,
+
+    isBlocked:
+      user.isBlocked,
+
+    createdAt:
+      user.createdAt,
+  };
 
   return {
+    success: true,
+
+    message:
+      "OTP verified successfully.",
+
     token,
-    user: sanitizeUser(user),
+
+    user:
+      safeUser,
   };
 };
-
-export const getUserByIdService = async (userId) => {
-  if (!userId) {
-    throw new ApiError(400, "User ID is required");
+// Login service
+export const loginService = async ({
+  email,
+  password,
+}) => {
+  if (!email || !password) {
+    throw new ApiError(
+      400,
+      "Email and password are required"
+    );
   }
 
-  const user = await prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      role: true,
-      isVerified: true,
-      isBlocked: true,
-      createdAt: true,
-    },
-  });
+  const normalizedEmail =
+    email.trim().toLowerCase();
+
+  // ---------------------------------------
+  // FIND USER
+  // ---------------------------------------
+
+  const user = await userModel
+    .findOne({
+      email: normalizedEmail,
+    })
+    .select("+password");
 
   if (!user) {
-    throw new ApiError(404, "User not found");
+    throw new ApiError(
+      401,
+      "Invalid email or password"
+    );
   }
 
-  return user;
+  // ---------------------------------------
+  // BLOCK CHECK
+  // ---------------------------------------
+
+  if (user.isBlocked) {
+    throw new ApiError(
+      403,
+      "Your account has been blocked"
+    );
+  }
+
+  // ---------------------------------------
+  // VERIFIED CHECK
+  // ---------------------------------------
+
+  if (!user.isVerified) {
+    throw new ApiError(
+      403,
+      "Please verify your account before login"
+    );
+  }
+
+  // ---------------------------------------
+  // PASSWORD CHECK
+  // ---------------------------------------
+
+  if (!user.password) {
+    throw new ApiError(
+      400,
+      "Password is not set for this account"
+    );
+  }
+
+  const isPasswordMatch =
+    await bcrypt.compare(
+      password,
+      user.password
+    );
+
+  if (!isPasswordMatch) {
+    throw new ApiError(
+      401,
+      "Invalid email or password"
+    );
+  }
+
+  // ---------------------------------------
+  // GENERATE TOKEN
+  // ---------------------------------------
+
+  const token = generateToken(
+    user._id.toString()
+  );
+
+  return {
+    success: true,
+
+    message:
+      "Login successful",
+
+    token,
+
+    user:
+      sanitizeUser(user),
+  };
 };
+export const getUserByIdService =
+  async (userId) => {
+    if (!userId) {
+      throw new ApiError(
+        400,
+        "User ID is required"
+      );
+    }
+
+    // ---------------------------------------
+    // VALIDATE MONGODB ID
+    // ---------------------------------------
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        userId
+      )
+    ) {
+      throw new ApiError(
+        400,
+        "Invalid User ID"
+      );
+    }
+
+    // ---------------------------------------
+    // FIND USER
+    // ---------------------------------------
+
+    const user = await userModel
+      .findById(userId)
+      .select(
+        "name email phone role isVerified isBlocked createdAt"
+      );
+
+    if (!user) {
+      throw new ApiError(
+        404,
+        "User not found"
+      );
+    }
+
+    return {
+      success: true,
+
+      user:
+        sanitizeUser(user),
+    };
+  };
