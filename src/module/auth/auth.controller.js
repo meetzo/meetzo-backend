@@ -1,5 +1,13 @@
 import asyncHandler from "../../utils/asyncHandler.js";
-import { signupService, loginService, getUserByIdService ,verifyOtpService} from "./auth.service.js";
+import { 
+  signupService, 
+  loginService, 
+  getUserByIdService ,
+  verifyOtpService,
+  sendLoginOtpService,
+  verifyLoginOtpService,
+  createPasswordService,
+} from "./auth.service.js";
 import ApiError from "../../utils/api.error.js";
 
 export const signup = asyncHandler(async (req, res) => {
@@ -12,7 +20,6 @@ export const signup = asyncHandler(async (req, res) => {
     token: result.otpToken
   });
 });
-
 
 export const verifySignupOtp = asyncHandler(async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -49,8 +56,6 @@ export const verifySignupOtp = asyncHandler(async (req, res) => {
   });
 });
 
-
-
 export const login = asyncHandler(async (req, res) => {
   const result = await loginService(req.body || {});
 
@@ -62,7 +67,6 @@ export const login = asyncHandler(async (req, res) => {
   });
 });
 
-
 export const getMyProfile = asyncHandler(async (req, res) => {
   const user = await getUserByIdService(req.user.id);
   return res.status(200).json({
@@ -71,3 +75,82 @@ export const getMyProfile = asyncHandler(async (req, res) => {
     data: user,
   });
 });
+
+export const sendLoginOtp = asyncHandler(
+  async (req, res) => {
+    const result =
+      await sendLoginOtpService(
+        req.body || {}
+      );
+
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent successfully",
+      token: result.otpToken,
+      data: {
+        loginType: result.loginType,
+        destination: result.destination,
+        expiresIn: result.expiresIn,
+      },
+    });
+  }
+);
+
+export const verifyLoginOtp = asyncHandler(
+  async (req, res) => {
+    const authHeader =
+      req.headers.authorization;
+
+    if (
+      !authHeader ||
+      !authHeader.startsWith("Bearer ")
+    ) {
+      throw new ApiError(
+        401,
+        "OTP bearer token is required"
+      );
+    }
+
+    const otpToken = authHeader
+      .slice(7)
+      .trim();
+
+    const { otp } = req.body || {};
+
+    const result =
+      await verifyLoginOtpService({
+        otpToken,
+        otp,
+      });
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token: result.token,
+      data: result.user,
+    });
+  }
+);
+
+export const createPassword = asyncHandler(
+  async (req, res) => {
+    const {
+      password,
+      confirmPassword,
+    } = req.body || {};
+
+    const result =
+      await createPasswordService({
+        userId: req.user.id,
+        password,
+        confirmPassword,
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Password created successfully",
+      data: result.user,
+    });
+  }
+);

@@ -14,7 +14,6 @@ const userSchema = new mongoose.Schema(
       unique: true,
       trim: true,
       lowercase: true,
-      index: true,
     },
 
     phone: {
@@ -22,7 +21,6 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
       trim: true,
-      index: true,
     },
 
     password: {
@@ -35,7 +33,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["USER", "ADMIN"],
       default: "USER",
-      required: true,
     },
 
     otp: {
@@ -47,6 +44,19 @@ const userSchema = new mongoose.Schema(
     otpExpiry: {
       type: Date,
       default: null,
+      select: false,
+    },
+
+    otpPurpose: {
+      type: String,
+      enum: ["SIGNUP", "LOGIN"],
+      default: null,
+      select: false,
+    },
+
+    otpAttempts: {
+      type: Number,
+      default: 0,
       select: false,
     },
 
@@ -66,17 +76,7 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Useful indexes
-userSchema.index({
-  createdAt: -1,
-});
+userSchema.index({ createdAt: -1 });
+userSchema.index({ role: 1, isBlocked: 1 });
 
-userSchema.index({
-  role: 1,
-  isBlocked: 1,
-});
-
-export default mongoose.model(
-  "User",
-  userSchema
-);
+export default mongoose.model("User", userSchema);
