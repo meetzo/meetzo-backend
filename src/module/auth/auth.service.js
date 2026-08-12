@@ -73,7 +73,7 @@ export const signupService = async ({ name, email, phone }) => {
 
   const otp = generateOtp();
 
-  const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+  const otpExpiry = new Date(Date.now() + LOGIN_OTP_EXPIRY_MINUTES * 60 * 1000);
 
   // ---------------------------------------
   // CREATE USER
