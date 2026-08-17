@@ -526,10 +526,10 @@ export const verifyEmailLoginOtpService = async ({
 
   const cleanOtp = String(otp).trim();
 
-  if (!/^\d{6}$/.test(cleanOtp)) {
+  if (!/^\d{4}$/.test(cleanOtp)) {
     throw new ApiError(
       400,
-      "Please enter a valid 6-digit OTP.",
+      "Please enter a valid 4-digit OTP.",
     );
   }
 
