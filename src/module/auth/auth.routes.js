@@ -4,8 +4,8 @@ import {
   login,
   getMyProfile,
   verifySignupOtp,
-  sendLoginOtp,
-  verifyLoginOtp,
+  sendEmailLoginOtp,
+  verifyEmailLoginOtp,
   createPassword,
 } from "./auth.controller.js";
 
@@ -18,9 +18,9 @@ router.post("/login", login);
 router.get("/me", isAuthenticated, getMyProfile);
 router.post("/verify-otp", verifySignupOtp);
 
-router.post("/login/send-otp", sendLoginOtp);
+router.post("/email_login", sendEmailLoginOtp);
 
-router.post("/login/verify-otp", verifyLoginOtp);
+router.post("/verify_email", verifyEmailLoginOtp);
 
 router.post("/create-password", isAuthenticated, createPassword);
 

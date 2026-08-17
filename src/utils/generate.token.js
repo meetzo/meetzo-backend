@@ -1,10 +1,43 @@
 import jwt from "jsonwebtoken";
 
-// Final authentication token
-export const generateToken = (userId) => {
+
+// ======================================================
+// NORMALIZE USER ID
+// Supports:
+// generateToken("userId")
+// generateToken({ userId: "userId" })
+// generateToken({ id: "userId" })
+// ======================================================
+
+const getUserId = (value) => {
+  let userId;
+
+  if (typeof value === "string") {
+    userId = value;
+  } else if (value && typeof value === "object") {
+    userId = value.userId || value.id;
+  }
+
+  if (!userId) {
+    throw new Error("userId is required to generate token.");
+  }
+
+  return userId.toString();
+};
+
+
+// ======================================================
+// FINAL AUTHENTICATION TOKEN
+// ======================================================
+
+export const generateToken = (data) => {
+  const userId = getUserId(data);
+
   return jwt.sign(
     {
       id: userId,
+      userId: userId,
+      purpose: "AUTH",
     },
     process.env.JWT_SECRET,
     {
@@ -13,18 +46,21 @@ export const generateToken = (userId) => {
   );
 };
 
-// Temporary login OTP token
-export const generateLoginOtpToken = ({
-  userId,
-  loginType,
-}) => {
+
+// ======================================================
+// TEMPORARY EMAIL LOGIN OTP TOKEN
+// ======================================================
+
+export const generateLoginOtpToken = (data) => {
+  const userId = getUserId(data);
+
   return jwt.sign(
     {
-      userId,
-      loginType,
-      purpose: "LOGIN_OTP",
+      id: userId,
+      userId: userId,
+      purpose: "EMAIL_LOGIN_OTP",
     },
-    process.env.OTP_TOKEN_SECRET,
+    process.env.JWT_SECRET,
     {
       expiresIn: "10m",
     }

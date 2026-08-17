@@ -1,11 +1,11 @@
 import asyncHandler from "../../utils/asyncHandler.js";
-import { 
-  signupService, 
-  loginService, 
-  getUserByIdService ,
+import {
+  signupService,
+  loginService,
+  getUserByIdService,
   verifyOtpService,
-  sendLoginOtpService,
-  verifyLoginOtpService,
+  sendEmailLoginOtpService,
+  verifyEmailLoginOtpService,
   createPasswordService,
 } from "./auth.service.js";
 import ApiError from "../../utils/api.error.js";
@@ -17,7 +17,7 @@ export const signup = asyncHandler(async (req, res) => {
     success: true,
     message: result.message,
     data: result.user,
-    token: result.otpToken
+    token: result.otpToken,
   });
 });
 
@@ -35,11 +35,7 @@ export const verifySignupOtp = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Invalid OTP bearer token");
   }
 
-  if (
-    otp === undefined ||
-    otp === null ||
-    String(otp).trim() === ""
-  ) {
+  if (otp === undefined || otp === null || String(otp).trim() === "") {
     throw new ApiError(400, "OTP is required");
   }
 
@@ -76,81 +72,86 @@ export const getMyProfile = asyncHandler(async (req, res) => {
   });
 });
 
-export const sendLoginOtp = asyncHandler(
+
+// ======================================================
+// SEND EMAIL LOGIN OTP
+// ======================================================
+
+export const sendEmailLoginOtp = asyncHandler(
   async (req, res) => {
-    const result =
-      await sendLoginOtpService(
-        req.body || {}
-      );
+    const { email } = req.body;
+
+    const result = await sendEmailLoginOtpService({
+      email,
+    });
 
     return res.status(200).json({
       success: true,
-      message: "OTP sent successfully",
-      token: result.otpToken,
-      data: {
-        loginType: result.loginType,
-        destination: result.destination,
-        expiresIn: result.expiresIn,
-      },
+      message:
+        "Login OTP sent successfully to your email.",
+      data: result,
     });
-  }
+  },
 );
 
-export const verifyLoginOtp = asyncHandler(
+
+// ======================================================
+// VERIFY EMAIL LOGIN OTP
+// ======================================================
+
+export const verifyEmailLoginOtp = asyncHandler(
   async (req, res) => {
-    const authHeader =
-      req.headers.authorization;
+    // ---------------------------------------
+    // GET TEMP ACCESS TOKEN
+    // ---------------------------------------
+
+    const authHeader = req.headers.authorization;
 
     if (
       !authHeader ||
-      !authHeader.startsWith("Bearer ")
+      !authHeader.startsWith("Bearer")
     ) {
       throw new ApiError(
         401,
-        "OTP bearer token is required"
+        "OTP verification access token is required.",
       );
     }
 
-    const otpToken = authHeader
-      .slice(7)
-      .trim();
+    const accessToken = authHeader
+      .split(" ")[1]
+      ?.trim();
 
-    const { otp } = req.body || {};
+    const { otp } = req.body;
+
+    // ---------------------------------------
+    // VERIFY OTP
+    // ---------------------------------------
 
     const result =
-      await verifyLoginOtpService({
-        otpToken,
+      await verifyEmailLoginOtpService({
+        accessToken,
         otp,
       });
 
     return res.status(200).json({
       success: true,
-      message: "Login successful",
-      token: result.token,
-      data: result.user,
+      message: "Login successful.",
+      data: result,
     });
-  }
+  },
 );
+export const createPassword = asyncHandler(async (req, res) => {
+  const { password, confirmPassword } = req.body || {};
 
-export const createPassword = asyncHandler(
-  async (req, res) => {
-    const {
-      password,
-      confirmPassword,
-    } = req.body || {};
+  const result = await createPasswordService({
+    userId: req.user.id,
+    password,
+    confirmPassword,
+  });
 
-    const result =
-      await createPasswordService({
-        userId: req.user.id,
-        password,
-        confirmPassword,
-      });
-
-    return res.status(200).json({
-      success: true,
-      message:
-        "Password created successfully",
-      data: result.user,
-    });
-  }
-);
+  return res.status(200).json({
+    success: true,
+    message: "Password created successfully",
+    data: result.user,
+  });
+});
