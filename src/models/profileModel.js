@@ -29,7 +29,26 @@ const profileSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Personal details
+    // =====================================
+    // PROFILE IMAGE
+    // =====================================
+
+    profileImage: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    profileImageId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    // =====================================
+    // PERSONAL DETAILS
+    // =====================================
+
     dateOfBirth: {
       type: Date,
       required: true,
@@ -52,52 +71,61 @@ const profileSchema = new mongoose.Schema(
       },
     },
 
-    // Gender
+    // =====================================
+    // GENDER
+    // =====================================
+
     gender: {
-  type: String,
-  enum: [
-    "MALE",
-    "FEMALE",
-    "NON_BINARY",
-    "OTHER",
-  ],
-  required: true,
-},
+      type: String,
+      enum: [
+        "MALE",
+        "FEMALE",
+        "NON_BINARY",
+        "OTHER",
+      ],
+      required: true,
+    },
 
-genderDescription: {
-  type: String,
-  trim: true,
-  maxlength: 200,
-  default: null,
-},
+    genderDescription: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+      default: null,
+    },
 
-showGenderOnProfile: {
-  type: Boolean,
-  default: true,
-},
+    showGenderOnProfile: {
+      type: Boolean,
+      default: true,
+    },
 
-    // Profession
-  profession: {
-  type: String,
-  enum: [
-    "STUDENT",
-    "SOFTWARE_DEVELOPER",
-    "ENGINEER",
-    "ENTREPRENEUR",
-    "FASHION_DESIGNER",
-    "OTHER"
-  ],
-  required: true,
-},
+    // =====================================
+    // PROFESSION
+    // =====================================
+
+    profession: {
+      type: String,
+      enum: [
+        "STUDENT",
+        "SOFTWARE_DEVELOPER",
+        "ENGINEER",
+        "ENTREPRENEUR",
+        "FASHION_DESIGNER",
+        "OTHER",
+      ],
+      required: true,
+    },
 
     customProfession: {
       type: String,
-      default: null,
       trim: true,
       maxlength: 100,
+      default: null,
     },
 
-    // Orientation
+    // =====================================
+    // ORIENTATION
+    // =====================================
+
     orientation: {
       type: String,
       enum: [
@@ -112,8 +140,9 @@ showGenderOnProfile: {
 
     customOrientation: {
       type: String,
-      default: null,
       trim: true,
+      maxlength: 100,
+      default: null,
     },
 
     showOrientationOnProfile: {
@@ -121,7 +150,10 @@ showGenderOnProfile: {
       default: true,
     },
 
-    // Connection preferences
+    // =====================================
+    // CONNECTION PREFERENCES
+    // =====================================
+
     meetzoGoal: {
       type: String,
       enum: [
@@ -148,7 +180,10 @@ showGenderOnProfile: {
       required: true,
     },
 
-    // Lifestyle
+    // =====================================
+    // LIFESTYLE
+    // =====================================
+
     smoking: {
       type: String,
       enum: [
@@ -193,12 +228,16 @@ showGenderOnProfile: {
       required: true,
     },
 
-    // Personality
+    // =====================================
+    // PERSONALITY
+    // =====================================
+
     selfDescription: {
       type: [String],
       required: true,
       validate: {
         validator: (value) =>
+          Array.isArray(value) &&
           value.length >= 1 &&
           value.length <= 3,
         message:
@@ -211,12 +250,17 @@ showGenderOnProfile: {
       required: true,
       validate: {
         validator: (value) =>
+          Array.isArray(value) &&
           value.length >= 1 &&
           value.length <= 5,
         message:
           "Select between 1 and 5 interests",
       },
     },
+
+    // =====================================
+    // RELIGION
+    // =====================================
 
     religion: {
       type: String,
@@ -236,15 +280,21 @@ showGenderOnProfile: {
 
     customReligion: {
       type: String,
-      default: null,
       trim: true,
+      maxlength: 100,
+      default: null,
     },
+
+    // =====================================
+    // WEEKEND AND VALUES
+    // =====================================
 
     idealWeekend: {
       type: [String],
       required: true,
       validate: {
         validator: (value) =>
+          Array.isArray(value) &&
           value.length >= 1 &&
           value.length <= 3,
         message:
@@ -257,12 +307,190 @@ showGenderOnProfile: {
       required: true,
       validate: {
         validator: (value) =>
+          Array.isArray(value) &&
           value.length >= 1 &&
           value.length <= 3,
         message:
           "Select between 1 and 3 values",
       },
     },
+
+    // =====================================
+    // OPTIONAL DETAILS
+    // =====================================
+
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: null,
+    },
+
+    education: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+      default: null,
+    },
+
+    college: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+      default: null,
+    },
+
+    company: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+      default: null,
+    },
+
+    jobTitle: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+      default: null,
+    },
+
+    city: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: null,
+    },
+
+    hometown: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: null,
+    },
+
+    // =====================================
+    // KYC DOCUMENTS
+    // =====================================
+
+    kycDocumentType: {
+      type: String,
+      enum: [
+        "AADHAAR",
+        "PAN",
+        "PASSPORT",
+        "DRIVING_LICENCE",
+        "VOTER_ID",
+      ],
+      default: null,
+    },
+
+    kycDocumentFront: {
+      type: String,
+      default: null,
+    },
+
+    kycDocumentFrontId: {
+      type: String,
+      default: null,
+    },
+
+    kycDocumentBack: {
+      type: String,
+      default: null,
+    },
+
+    kycDocumentBackId: {
+      type: String,
+      default: null,
+    },
+
+    // =====================================
+    // KYC VERIFICATION STATUS
+    // =====================================
+
+    kycStatus: {
+      type: String,
+      enum: [
+        "NOT_STARTED",
+        "PENDING",
+        "VERIFIED",
+        "REJECTED",
+      ],
+      default: "NOT_STARTED",
+    },
+
+    isKycVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    kycRejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: 300,
+      default: null,
+    },
+
+    kycSubmittedAt: {
+      type: Date,
+      default: null,
+    },
+
+    kycVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // =====================================
+    // FACE VERIFICATION
+    // =====================================
+
+    faceImage: {
+      type: String,
+      default: null,
+    },
+
+    faceImageId: {
+      type: String,
+      default: null,
+    },
+
+    faceVerificationStatus: {
+      type: String,
+      enum: [
+        "NOT_STARTED",
+        "PENDING",
+        "VERIFIED",
+        "REJECTED",
+      ],
+      default: "NOT_STARTED",
+    },
+
+    isFaceVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    faceVerificationRejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: 300,
+      default: null,
+    },
+
+    faceVerificationSubmittedAt: {
+      type: Date,
+      default: null,
+    },
+
+    faceVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // =====================================
+    // PROFILE COMPLETION
+    // =====================================
 
     isProfileCompleted: {
       type: Boolean,
