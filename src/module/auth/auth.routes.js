@@ -16,10 +16,10 @@ const router = express.Router();
 router.post("/signup", signup);
 router.post("/login", login);
 router.get("/me", isAuthenticated, getMyProfile);
-router.post("/verify-otp", verifySignupOtp);
+router.post("/verify-signup-otp", verifySignupOtp);
 
+//email login routes
 router.post("/email_login", sendEmailLoginOtp);
-
 router.post("/verify_email", verifyEmailLoginOtp);
 
 router.post("/create-password", isAuthenticated, createPassword);
