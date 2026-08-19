@@ -1,9 +1,13 @@
 import asyncHandler from "../../utils/asyncHandler.js";
+import imageKit from "./imageKit.service.js";
+import profileModel from "../../models/profileModel.js";
+import ApiError from "../../utils/api.error.js";
 
 import {
   saveProfileDetailsService,
   getProfileService,
   updateProfileService,
+  addProfilePictureService
 } from "./profile.service.js";
 
 export const saveProfileDetailsController = asyncHandler(async (req, res) => {
@@ -44,3 +48,20 @@ export const updateProfileController = asyncHandler(async (req, res) => {
     data: profile,
   });
 });
+
+export const addProfilePicture = asyncHandler(
+  async (req, res) => {
+    const userId = req.user?._id || req.user?.id;
+
+    const result = await addProfilePictureService({
+      userId,
+      file: req.file,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile picture updated successfully",
+      data: result,
+    });
+  }
+);

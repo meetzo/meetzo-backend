@@ -22,9 +22,12 @@
     "dotenv": "^17.4.2",
     "env": "^0.0.2",
     "express": "^5.2.1",
+    "google-auth-library": "^11.0.2",
+    "imagekit": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoos": "^0.0.1-security",
     "mongoose": "^9.9.2",
+    "multer": "^2.2.0",
     "nodemailer": "^9.0.3",
     "nodemon": "^3.1.14"
   },
