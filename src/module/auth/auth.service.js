@@ -1,11 +1,12 @@
 import bcrypt from "bcryptjs";
 import userModel from "../../models/userModel.js";
-import signupAttemptModel from "../../models/signupAttemptModel.js"
+import signupAttemptModel from "../../models/signupAttemptModel.js";
 import mongoose from "mongoose";
 
-import {  
+import {
   generateToken,
-  generateLoginOtpToken, } from "../../utils/generate.token.js";
+  generateLoginOtpToken,
+} from "../../utils/generate.token.js";
 import ApiError from "../../utils/api.error.js";
 import { generateOtp } from "../../utils/generate.otp.js";
 import { sendOtpEmail } from "../../utils/sendEmail.js";
@@ -37,14 +38,11 @@ const generateOtpToken = (email) => {
   });
 };
 
-
 // =====================================================
 // TEMP OTP TOKEN
 // =====================================================
 
-const generateSignupOtpToken = ({
-  signupAttemptId,
-}) => {
+const generateSignupOtpToken = ({ signupAttemptId }) => {
   return jwt.sign(
     {
       signupAttemptId,
@@ -53,85 +51,57 @@ const generateSignupOtpToken = ({
     process.env.OTP_TOKEN_SECRET,
     {
       expiresIn: "10m",
-    }
+    },
   );
 };
-
 
 // =====================================================
 // SIGNUP SERVICE
 // =====================================================
 
-export const signupService = async ({
-  name,
-  email,
-  phone,
-}) => {
+export const signupService = async ({ name, email, phone }) => {
   // ---------------------------------------
   // VALIDATION
   // ---------------------------------------
 
   if (!name || !email || !phone) {
-    throw new ApiError(
-      400,
-      "Name, email and phone are required"
-    );
+    throw new ApiError(400, "Name, email and phone are required");
   }
 
-  const trimmedName =
-    String(name).trim();
+  const trimmedName = String(name).trim();
 
-  const normalizedEmail =
-    String(email)
-      .trim()
-      .toLowerCase();
+  const normalizedEmail = String(email).trim().toLowerCase();
 
-  const normalizedPhone =
-    String(phone).trim();
-
+  const normalizedPhone = String(phone).trim();
 
   if (!trimmedName) {
-    throw new ApiError(
-      400,
-      "Name is required"
-    );
+    throw new ApiError(400, "Name is required");
   }
 
-
-  const emailRegex =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!emailRegex.test(normalizedEmail)) {
-    throw new ApiError(
-      400,
-      "Please enter a valid email address"
-    );
+    throw new ApiError(400, "Please enter a valid email address");
   }
-
 
   // ---------------------------------------
   // CHECK ACTUAL USER
   // ---------------------------------------
 
-  const existingUser =
-    await userModel.findOne({
-      $or: [
-        {
-          email: normalizedEmail,
-        },
-        {
-          phone: normalizedPhone,
-        },
-      ],
-    });
+  const existingUser = await userModel.findOne({
+    $or: [
+      {
+        email: normalizedEmail,
+      },
+      {
+        phone: normalizedPhone,
+      },
+    ],
+  });
 
   if (existingUser) {
-    throw new ApiError(
-      409,
-      "User already exists with this email or phone"
-    );
+    throw new ApiError(409, "User already exists with this email or phone");
   }
-
 
   // ---------------------------------------
   // GENERATE OTP
@@ -139,20 +109,11 @@ export const signupService = async ({
 
   const otp = String(generateOtp());
 
-  const otpHash =
-    await bcrypt.hash(
-      otp,
-      10
-    );
+  const otpHash = await bcrypt.hash(otp, 10);
 
-  const otpExpiresAt =
-    new Date(
-      Date.now() +
-        SIGNUP_OTP_EXPIRY_MINUTES *
-          60 *
-          1000
-    );
-
+  const otpExpiresAt = new Date(
+    Date.now() + SIGNUP_OTP_EXPIRY_MINUTES * 60 * 1000,
+  );
 
   // ---------------------------------------
   // REMOVE PREVIOUS ATTEMPTS
@@ -169,64 +130,50 @@ export const signupService = async ({
     ],
   });
 
-
   // ---------------------------------------
   // CREATE TEMP SIGNUP
   // ---------------------------------------
 
-  const signupAttempt =
-    await signupAttemptModel.create({
-      name: trimmedName,
+  const signupAttempt = await signupAttemptModel.create({
+    name: trimmedName,
 
-      email: normalizedEmail,
+    email: normalizedEmail,
 
-      phone: normalizedPhone,
+    phone: normalizedPhone,
 
-      otpHash,
+    otpHash,
 
-      otpExpiresAt,
+    otpExpiresAt,
 
-      attempts: 0,
-    });
-
+    attempts: 0,
+  });
 
   // ---------------------------------------
   // SEND OTP
   // ---------------------------------------
 
   try {
-    await sendOtpEmail(
-      normalizedEmail,
-      otp
-    );
+    await sendOtpEmail(normalizedEmail, otp);
   } catch (error) {
     await signupAttemptModel.deleteOne({
       _id: signupAttempt._id,
     });
 
-    throw new ApiError(
-      500,
-      "Unable to send OTP. Please try again."
-    );
+    throw new ApiError(500, "Unable to send OTP. Please try again.");
   }
-
 
   // ---------------------------------------
   // OTP TOKEN
   // ---------------------------------------
 
-  const otpToken =
-    generateSignupOtpToken({
-      signupAttemptId:
-        signupAttempt._id.toString(),
-    });
-
+  const otpToken = generateSignupOtpToken({
+    signupAttemptId: signupAttempt._id.toString(),
+  });
 
   return {
     success: true,
 
-    message:
-      "OTP sent to your email. Please verify to complete signup.",
+    message: "OTP sent to your email. Please verify to complete signup.",
 
     otpToken,
 
@@ -239,43 +186,28 @@ export const signupService = async ({
   };
 };
 
-
 // =====================================================
 // VERIFY SIGNUP OTP SERVICE
 // =====================================================
 
-export const verifySignupOtpService = async ({
-  otpToken,
-  otp,
-}) => {
+export const verifySignupOtpService = async ({ otpToken, otp }) => {
   // ---------------------------------------
   // VALIDATION
   // ---------------------------------------
 
   if (!otpToken) {
-    throw new ApiError(
-      401,
-      "OTP token is required"
-    );
+    throw new ApiError(401, "OTP token is required");
   }
 
-  const cleanOtp =
-    String(otp ?? "").trim();
+  const cleanOtp = String(otp ?? "").trim();
 
   if (!cleanOtp) {
-    throw new ApiError(
-      400,
-      "OTP is required"
-    );
+    throw new ApiError(400, "OTP is required");
   }
 
   if (!/^\d{4}$/.test(cleanOtp)) {
-    throw new ApiError(
-      400,
-      "Please enter a valid 4-digit OTP"
-    );
+    throw new ApiError(400, "Please enter a valid 4-digit OTP");
   }
-
 
   // ---------------------------------------
   // VERIFY OTP SESSION TOKEN
@@ -284,72 +216,45 @@ export const verifySignupOtpService = async ({
   let payload;
 
   try {
-    payload = jwt.verify(
-      otpToken,
-      process.env.OTP_TOKEN_SECRET
-    );
+    payload = jwt.verify(otpToken, process.env.OTP_TOKEN_SECRET);
   } catch (error) {
-    if (
-      error?.name === "TokenExpiredError"
-    ) {
-      throw new ApiError(
-        401,
-        "OTP session has expired. Please signup again."
-      );
+    if (error?.name === "TokenExpiredError") {
+      throw new ApiError(401, "OTP session has expired. Please signup again.");
     }
 
-    throw new ApiError(
-      401,
-      "Invalid OTP session"
-    );
+    throw new ApiError(401, "Invalid OTP session");
   }
-
 
   // ---------------------------------------
   // CHECK TOKEN PURPOSE
   // ---------------------------------------
 
-  if (
-    payload.purpose !== "SIGNUP_OTP"
-  ) {
-    throw new ApiError(
-      401,
-      "Invalid signup OTP token"
-    );
+  if (payload.purpose !== "SIGNUP_OTP") {
+    throw new ApiError(401, "Invalid signup OTP token");
   }
-
 
   // ---------------------------------------
   // CHECK SIGNUP ATTEMPT ID
   // ---------------------------------------
 
   if (!payload.signupAttemptId) {
-    throw new ApiError(
-      401,
-      "Invalid signup session"
-    );
+    throw new ApiError(401, "Invalid signup session");
   }
-
 
   // ---------------------------------------
   // FIND SIGNUP ATTEMPT
   // ---------------------------------------
 
-  const signupAttempt =
-    await signupAttemptModel
-      .findById(
-        payload.signupAttemptId
-      )
-      .select("+otpHash");
-
+  const signupAttempt = await signupAttemptModel
+    .findById(payload.signupAttemptId)
+    .select("+otpHash");
 
   if (!signupAttempt) {
     throw new ApiError(
       404,
-      "Signup session not found or expired. Please signup again."
+      "Signup session not found or expired. Please signup again.",
     );
   }
-
 
   // ---------------------------------------
   // CHECK OTP EXPIRY
@@ -357,67 +262,50 @@ export const verifySignupOtpService = async ({
 
   if (
     !signupAttempt.otpExpiresAt ||
-    signupAttempt.otpExpiresAt.getTime() <=
-      Date.now()
+    signupAttempt.otpExpiresAt.getTime() <= Date.now()
   ) {
     await signupAttemptModel.deleteOne({
       _id: signupAttempt._id,
     });
 
-    throw new ApiError(
-      400,
-      "OTP has expired. Please signup again."
-    );
+    throw new ApiError(400, "OTP has expired. Please signup again.");
   }
-
 
   // ---------------------------------------
   // CHECK MAX OTP ATTEMPTS
   // ---------------------------------------
 
-  if (
-    signupAttempt.attempts >=
-    MAX_OTP_ATTEMPTS
-  ) {
+  if (signupAttempt.attempts >= MAX_OTP_ATTEMPTS) {
     await signupAttemptModel.deleteOne({
       _id: signupAttempt._id,
     });
 
     throw new ApiError(
       429,
-      "Too many incorrect OTP attempts. Please signup again."
+      "Too many incorrect OTP attempts. Please signup again.",
     );
   }
-
 
   // ---------------------------------------
   // VERIFY OTP
   // ---------------------------------------
 
-  const isOtpValid =
-    await bcrypt.compare(
-      cleanOtp,
-      signupAttempt.otpHash
-    );
-
+  const isOtpValid = await bcrypt.compare(cleanOtp, signupAttempt.otpHash);
 
   if (!isOtpValid) {
     signupAttempt.attempts += 1;
 
     await signupAttempt.save();
 
-    const attemptsLeft =
-      MAX_OTP_ATTEMPTS -
-      signupAttempt.attempts;
+    const attemptsLeft = MAX_OTP_ATTEMPTS - signupAttempt.attempts;
 
     throw new ApiError(
       400,
       attemptsLeft > 0
         ? `Invalid OTP. ${attemptsLeft} attempts remaining.`
-        : "Too many incorrect OTP attempts. Please signup again."
+        : "Too many incorrect OTP attempts. Please signup again.",
     );
   }
-
 
   // ---------------------------------------
   // CHECK USER AGAIN
@@ -426,30 +314,24 @@ export const verifySignupOtpService = async ({
   // have created the account meanwhile.
   // ---------------------------------------
 
-  const existingUser =
-    await userModel.findOne({
-      $or: [
-        {
-          email: signupAttempt.email,
-        },
-        {
-          phone: signupAttempt.phone,
-        },
-      ],
-    });
-
+  const existingUser = await userModel.findOne({
+    $or: [
+      {
+        email: signupAttempt.email,
+      },
+      {
+        phone: signupAttempt.phone,
+      },
+    ],
+  });
 
   if (existingUser) {
     await signupAttemptModel.deleteOne({
       _id: signupAttempt._id,
     });
 
-    throw new ApiError(
-      409,
-      "User already registered with this email or phone"
-    );
+    throw new ApiError(409, "User already registered with this email or phone");
   }
-
 
   // ---------------------------------------
   // CREATE ACTUAL USER
@@ -473,15 +355,11 @@ export const verifySignupOtpService = async ({
   } catch (error) {
     // Mongo unique index race-condition protection
     if (error?.code === 11000) {
-      throw new ApiError(
-        409,
-        "User already registered"
-      );
+      throw new ApiError(409, "User already registered");
     }
 
     throw error;
   }
-
 
   // ---------------------------------------
   // DELETE SIGNUP ATTEMPT
@@ -491,15 +369,11 @@ export const verifySignupOtpService = async ({
     _id: signupAttempt._id,
   });
 
-
   // ---------------------------------------
   // GENERATE LOGIN JWT
   // ---------------------------------------
 
-  const token = generateToken(
-    user._id.toString()
-  );
-
+  const token = generateToken(user._id.toString());
 
   // ---------------------------------------
   // SAFE USER RESPONSE
@@ -520,31 +394,25 @@ export const verifySignupOtpService = async ({
 
     isBlocked: user.isBlocked,
 
-    profileImage:
-      user.profileImage ?? null,
+    profileImage: user.profileImage ?? null,
 
-    kycStatus:
-      user.kycStatus,
+    kycStatus: user.kycStatus,
 
-    isKycVerified:
-      user.isKycVerified,
+    isKycVerified: user.isKycVerified,
 
     createdAt: user.createdAt,
   };
 
-
   return {
     success: true,
 
-    message:
-      "Account verified and registered successfully",
+    message: "Account verified and registered successfully",
 
     token,
 
     user: safeUser,
   };
 };
-
 
 // Login service
 export const loginService = async ({ email, password }) => {
@@ -615,7 +483,6 @@ export const loginService = async ({ email, password }) => {
   };
 };
 
-
 export const getUserByIdService = async (userId) => {
   if (!userId) {
     throw new ApiError(400, "User ID is required");
@@ -648,9 +515,6 @@ export const getUserByIdService = async (userId) => {
   };
 };
 
-
-
-
 // ======================================================
 // SEND EMAIL LOGIN OTP
 // ======================================================
@@ -669,10 +533,7 @@ export const sendEmailLoginOtpService = async ({ email }) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!emailRegex.test(cleanEmail)) {
-    throw new ApiError(
-      400,
-      "Please enter a valid email address.",
-    );
+    throw new ApiError(400, "Please enter a valid email address.");
   }
 
   // ---------------------------------------
@@ -684,10 +545,7 @@ export const sendEmailLoginOtpService = async ({ email }) => {
   });
 
   if (!user) {
-    throw new ApiError(
-      404,
-      "No account found with this email address.",
-    );
+    throw new ApiError(404, "No account found with this email address.");
   }
 
   // ---------------------------------------
@@ -706,10 +564,7 @@ export const sendEmailLoginOtpService = async ({ email }) => {
   // ---------------------------------------
 
   if (!user.isVerified) {
-    throw new ApiError(
-      403,
-      "Please verify your account before logging in.",
-    );
+    throw new ApiError(403, "Please verify your account before logging in.");
   }
 
   // ---------------------------------------
@@ -720,9 +575,7 @@ export const sendEmailLoginOtpService = async ({ email }) => {
 
   const hashedOtp = await bcrypt.hash(otp, 10);
 
-  const otpExpiry = new Date(
-    Date.now() + LOGIN_OTP_EXPIRY_MINUTES * 60 * 1000,
-  );
+  const otpExpiry = new Date(Date.now() + LOGIN_OTP_EXPIRY_MINUTES * 60 * 1000);
 
   // ---------------------------------------
   // SAVE OTP
@@ -753,10 +606,7 @@ export const sendEmailLoginOtpService = async ({ email }) => {
       },
     });
 
-    throw new ApiError(
-      500,
-      "Unable to send OTP. Please try again.",
-    );
+    throw new ApiError(500, "Unable to send OTP. Please try again.");
   }
 
   // ---------------------------------------
@@ -778,24 +628,17 @@ export const sendEmailLoginOtpService = async ({ email }) => {
   };
 };
 
-
 // ======================================================
 // VERIFY EMAIL LOGIN OTP
 // ======================================================
 
-export const verifyEmailLoginOtpService = async ({
-  accessToken,
-  otp,
-}) => {
+export const verifyEmailLoginOtpService = async ({ accessToken, otp }) => {
   // ---------------------------------------
   // VALIDATION
   // ---------------------------------------
 
   if (!accessToken) {
-    throw new ApiError(
-      401,
-      "OTP verification access token is required.",
-    );
+    throw new ApiError(401, "OTP verification access token is required.");
   }
 
   if (otp === undefined || otp === null || otp === "") {
@@ -805,10 +648,7 @@ export const verifyEmailLoginOtpService = async ({
   const cleanOtp = String(otp).trim();
 
   if (!/^\d{4}$/.test(cleanOtp)) {
-    throw new ApiError(
-      400,
-      "Please enter a valid 4-digit OTP.",
-    );
+    throw new ApiError(400, "Please enter a valid 4-digit OTP.");
   }
 
   // ---------------------------------------
@@ -818,10 +658,7 @@ export const verifyEmailLoginOtpService = async ({
   let decoded;
 
   try {
-    decoded = jwt.verify(
-      accessToken,
-      process.env.JWT_SECRET,
-    );
+    decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
   } catch (error) {
     if (error.name === "TokenExpiredError") {
       throw new ApiError(
@@ -830,10 +667,7 @@ export const verifyEmailLoginOtpService = async ({
       );
     }
 
-    throw new ApiError(
-      401,
-      "Invalid OTP verification access token.",
-    );
+    throw new ApiError(401, "Invalid OTP verification access token.");
   }
 
   // ---------------------------------------
@@ -841,17 +675,11 @@ export const verifyEmailLoginOtpService = async ({
   // ---------------------------------------
 
   if (decoded.purpose !== "EMAIL_LOGIN_OTP") {
-    throw new ApiError(
-      401,
-      "Invalid token purpose.",
-    );
+    throw new ApiError(401, "Invalid token purpose.");
   }
 
   if (!decoded.userId) {
-    throw new ApiError(
-      401,
-      "Invalid OTP verification token.",
-    );
+    throw new ApiError(401, "Invalid OTP verification token.");
   }
 
   // ---------------------------------------
@@ -860,15 +688,10 @@ export const verifyEmailLoginOtpService = async ({
 
   const user = await userModel
     .findById(decoded.userId)
-    .select(
-      "+otp +otpExpiry +otpPurpose +otpAttempts",
-    );
+    .select("+otp +otpExpiry +otpPurpose +otpAttempts");
 
   if (!user) {
-    throw new ApiError(
-      404,
-      "User account not found.",
-    );
+    throw new ApiError(404, "User account not found.");
   }
 
   // ---------------------------------------
@@ -886,15 +709,8 @@ export const verifyEmailLoginOtpService = async ({
   // OTP CHECK
   // ---------------------------------------
 
-  if (
-    !user.otp ||
-    !user.otpExpiry ||
-    user.otpPurpose !== "LOGIN"
-  ) {
-    throw new ApiError(
-      400,
-      "Login OTP not found. Please request a new OTP.",
-    );
+  if (!user.otp || !user.otpExpiry || user.otpPurpose !== "LOGIN") {
+    throw new ApiError(400, "Login OTP not found. Please request a new OTP.");
   }
 
   // ---------------------------------------
@@ -909,10 +725,7 @@ export const verifyEmailLoginOtpService = async ({
 
     await user.save();
 
-    throw new ApiError(
-      400,
-      "OTP has expired. Please request a new OTP.",
-    );
+    throw new ApiError(400, "OTP has expired. Please request a new OTP.");
   }
 
   // ---------------------------------------
@@ -937,16 +750,12 @@ export const verifyEmailLoginOtpService = async ({
   // VERIFY OTP
   // ---------------------------------------
 
-  const isOtpCorrect = await bcrypt.compare(
-    cleanOtp,
-    user.otp,
-  );
+  const isOtpCorrect = await bcrypt.compare(cleanOtp, user.otp);
 
   if (!isOtpCorrect) {
     user.otpAttempts += 1;
 
-    const remainingAttempts =
-      MAX_OTP_ATTEMPTS - user.otpAttempts;
+    const remainingAttempts = MAX_OTP_ATTEMPTS - user.otpAttempts;
 
     if (remainingAttempts <= 0) {
       user.otp = null;
@@ -1016,66 +825,40 @@ export const createPasswordService = async ({
   confirmPassword,
 }) => {
   if (!userId) {
-    throw new ApiError(
-      401,
-      "Authentication is required"
-    );
+    throw new ApiError(401, "Authentication is required");
   }
 
   if (!password || !confirmPassword) {
-    throw new ApiError(
-      400,
-      "Password and confirm password are required"
-    );
+    throw new ApiError(400, "Password and confirm password are required");
   }
 
   if (String(password).length < 8) {
-    throw new ApiError(
-      400,
-      "Password must be at least 8 characters"
-    );
+    throw new ApiError(400, "Password must be at least 8 characters");
   }
 
   if (password !== confirmPassword) {
-    throw new ApiError(
-      400,
-      "Password and confirm password do not match"
-    );
+    throw new ApiError(400, "Password and confirm password do not match");
   }
 
-  const user = await userModel
-    .findById(userId)
-    .select("+password");
+  const user = await userModel.findById(userId).select("+password");
 
   if (!user) {
     throw new ApiError(404, "User not found");
   }
 
   if (user.isBlocked) {
-    throw new ApiError(
-      403,
-      "Your account has been blocked"
-    );
+    throw new ApiError(403, "Your account has been blocked");
   }
 
   if (!user.isVerified) {
-    throw new ApiError(
-      403,
-      "Please verify your account first"
-    );
+    throw new ApiError(403, "Please verify your account first");
   }
 
   if (user.password) {
-    throw new ApiError(
-      409,
-      "Password is already created"
-    );
+    throw new ApiError(409, "Password is already created");
   }
 
-  user.password = await bcrypt.hash(
-    password,
-    12
-  );
+  user.password = await bcrypt.hash(password, 12);
 
   await user.save();
 
@@ -1084,62 +867,35 @@ export const createPasswordService = async ({
   };
 };
 
+// =======================================
+// GOOGLE AUTH SERVICE
+// =======================================
 
-// ---------------------------------------
-// ERROR HELPER
-// ---------------------------------------
+export const googleAuthService = async (idToken) => {
+  const cleanIdToken = String(idToken ?? "").trim();
 
-const createError = (statusCode, message) => {
-  const error = new Error(message);
-  error.statusCode = statusCode;
+  if (!cleanIdToken) {
+    const error = new Error("Google ID token is required");
 
-  return error;
-};
+    error.statusCode = 400;
+    throw error;
+  }
 
-// ---------------------------------------
-// ALLOWED GOOGLE CLIENT IDS
-// ---------------------------------------
-
-const getAllowedGoogleClientIds = () => {
-  const clientIds = [
+  const allowedClientIds = [
     process.env.CLIENT_ID,
     process.env.ANDROID_CLIENT_ID,
     process.env.ANDROID_RELEASE_CLIENT_ID,
     process.env.IOS_CLIENT_ID,
   ]
-    .map((clientId) =>
-      String(clientId ?? "").trim(),
-    )
+    .map((clientId) => String(clientId ?? "").trim())
     .filter(Boolean);
 
-  if (clientIds.length === 0) {
-    throw createError(
-      500,
-      "Google OAuth client IDs are not configured",
-    );
+  if (allowedClientIds.length === 0) {
+    const error = new Error("Google OAuth client IDs are not configured");
+
+    error.statusCode = 500;
+    throw error;
   }
-
-  return clientIds;
-};
-
-// ---------------------------------------
-// VERIFY GOOGLE ID TOKEN
-// ---------------------------------------
-
-const verifyGoogleIdToken = async (idToken) => {
-  const cleanIdToken = String(
-    idToken ?? "",
-  ).trim();
-
-  if (!cleanIdToken) {
-    throw createError(
-      400,
-      "Google ID token is required",
-    );
-  }
-
-  const allowedClientIds =
-    getAllowedGoogleClientIds();
 
   let ticket;
 
@@ -1149,81 +905,50 @@ const verifyGoogleIdToken = async (idToken) => {
       audience: allowedClientIds,
     });
   } catch (error) {
-    console.error(
-      "GOOGLE TOKEN VERIFICATION ERROR:",
-      error.message,
-    );
+    console.error("GOOGLE TOKEN VERIFY ERROR:", error.message);
 
-    throw createError(
-      401,
-      "Invalid or expired Google ID token",
-    );
+    const authError = new Error("Invalid or expired Google ID token");
+
+    authError.statusCode = 401;
+    throw authError;
   }
 
   const payload = ticket.getPayload();
 
   if (!payload) {
-    throw createError(
-      401,
-      "Unable to read Google account information",
-    );
+    const error = new Error("Unable to read Google user information");
+
+    error.statusCode = 401;
+    throw error;
   }
 
-  return payload;
-};
-
-// ---------------------------------------
-// FIND OR CREATE GOOGLE USER
-// ---------------------------------------
-
-const findOrCreateGoogleUser = async (
-  payload,
-) => {
-  const {
-    sub,
-    email,
-    name,
-    picture,
-    email_verified: emailVerified,
-  } = payload;
+  const { sub, email, name, picture, email_verified: emailVerified } = payload;
 
   const googleId = String(sub ?? "").trim();
 
-  const normalizedEmail = String(
-    email ?? "",
-  )
+  const normalizedEmail = String(email ?? "")
     .trim()
     .toLowerCase();
 
-  const normalizedName = String(
-    name ?? "",
-  ).trim();
+  const normalizedName = String(name ?? "").trim();
 
-  const profileImage = String(
-    picture ?? "",
-  ).trim();
-
-  // ---------------------------------------
-  // VALIDATE GOOGLE USER INFORMATION
-  // ---------------------------------------
+  const profileImage = String(picture ?? "").trim();
 
   if (!googleId || !normalizedEmail) {
-    throw createError(
-      400,
+    const error = new Error(
       "Google account did not provide the required information",
     );
+
+    error.statusCode = 400;
+    throw error;
   }
 
   if (emailVerified !== true) {
-    throw createError(
-      401,
-      "Google email is not verified",
-    );
-  }
+    const error = new Error("Google email is not verified");
 
-  // ---------------------------------------
-  // FIND EXISTING USER
-  // ---------------------------------------
+    error.statusCode = 401;
+    throw error;
+  }
 
   let user = await userModel.findOne({
     $or: [
@@ -1236,108 +961,70 @@ const findOrCreateGoogleUser = async (
     ],
   });
 
-  // ---------------------------------------
-  // CREATE NEW USER
-  // ---------------------------------------
+  if (user) {
+    if (user.isBlocked) {
+      const error = new Error("Your account has been blocked");
 
-  if (!user) {
+      error.statusCode = 403;
+      throw error;
+    }
+
+    if (user.googleId && String(user.googleId) !== googleId) {
+      const error = new Error(
+        "This email is connected to another Google account",
+      );
+
+      error.statusCode = 409;
+      throw error;
+    }
+
+    let shouldSave = false;
+
+    if (!user.googleId) {
+      user.googleId = googleId;
+      shouldSave = true;
+    }
+
+    if (!user.profileImage && profileImage) {
+      user.profileImage = profileImage;
+
+      shouldSave = true;
+    }
+
+    if (!user.isVerified) {
+      user.isVerified = true;
+      shouldSave = true;
+    }
+
+    /*
+     * Existing local user's authProvider
+     * is not overwritten, so local login
+     * can remain available.
+     */
+
+    if (shouldSave) {
+      await user.save();
+    }
+  } else {
     user = await userModel.create({
-      name:
-        normalizedName ||
-        normalizedEmail.split("@")[0],
+      name: normalizedName || normalizedEmail.split("@")[0],
 
       email: normalizedEmail,
 
       googleId,
 
-      profileImage:
-        profileImage || null,
+      profileImage: profileImage || null,
 
       authProvider: "google",
 
       isVerified: true,
     });
-
-    return user;
   }
 
-  // ---------------------------------------
-  // BLOCKED USER CHECK
-  // ---------------------------------------
-
-  if (user.isBlocked) {
-    throw createError(
-      403,
-      "Your account has been blocked",
-    );
-  }
-
-  // ---------------------------------------
-  // GOOGLE ACCOUNT CONFLICT CHECK
-  // ---------------------------------------
-
-  if (
-    user.googleId &&
-    String(user.googleId) !== googleId
-  ) {
-    throw createError(
-      409,
-      "This email is connected to another Google account",
-    );
-  }
-
-  // ---------------------------------------
-  // UPDATE EXISTING USER
-  // ---------------------------------------
-
-  let shouldSave = false;
-
-  if (!user.googleId) {
-    user.googleId = googleId;
-    shouldSave = true;
-  }
-
-  if (
-    !user.profileImage &&
-    profileImage
-  ) {
-    user.profileImage = profileImage;
-    shouldSave = true;
-  }
-
-  if (!user.isVerified) {
-    user.isVerified = true;
-    shouldSave = true;
-  }
-
-  /*
-   * Existing local user's authProvider is not
-   * changed because the user may still use
-   * email/password login.
-   *
-   * A newly created Google user's provider
-   * is already "google".
-   */
-
-  if (shouldSave) {
-    await user.save();
-  }
-
-  return user;
-};
-
-// ---------------------------------------
-// FORMAT GOOGLE LOGIN RESPONSE
-// ---------------------------------------
-
-const createGoogleLoginResponse = (user) => {
-  const token = generateToken(
-    user._id.toString(),
-  );
+  const token = generateToken(user._id.toString());
 
   return {
-    message:
-      "Google authentication successful",
+    message: "Google authentication successful",
 
     token,
 
@@ -1346,48 +1033,184 @@ const createGoogleLoginResponse = (user) => {
       name: user.name,
       email: user.email,
 
-      profileImage:
-        user.profileImage ?? null,
+      profileImage: user.profileImage ?? null,
 
-      authProvider:
-        user.authProvider,
+      authProvider: user.authProvider,
 
-      isVerified:
-        user.isVerified,
+      isVerified: user.isVerified,
     },
   };
 };
 
 // =======================================
-// NORMAL GOOGLE AUTH SERVICE
+// GOOGLE ANDROID AUTH SERVICE
 // =======================================
 
-export const googleAuthService = async (
-  idToken,
-) => {
-  const payload =
-    await verifyGoogleIdToken(idToken);
+export const googleAndroidAuthService = async ({ idToken }) => {
+  const cleanIdToken = String(idToken ?? "").trim();
 
-  const user =
-    await findOrCreateGoogleUser(payload);
+  if (!cleanIdToken) {
+    const error = new Error("Google ID token is required");
 
-  return createGoogleLoginResponse(user);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const allowedClientIds = [
+    process.env.CLIENT_ID,
+    process.env.ANDROID_CLIENT_ID,
+    process.env.ANDROID_RELEASE_CLIENT_ID,
+  ]
+    .map((clientId) => String(clientId ?? "").trim())
+    .filter(Boolean);
+
+  if (allowedClientIds.length === 0) {
+    const error = new Error(
+      "Google Android OAuth client IDs are not configured",
+    );
+
+    error.statusCode = 500;
+    throw error;
+  }
+
+  let ticket;
+
+  try {
+    ticket = await googleClient.verifyIdToken({
+      idToken: cleanIdToken,
+      audience: allowedClientIds,
+    });
+  } catch (error) {
+    console.error("GOOGLE ANDROID TOKEN VERIFY ERROR:", error.message);
+
+    const authError = new Error("Invalid or expired Google ID token");
+
+    authError.statusCode = 401;
+    throw authError;
+  }
+
+  const payload = ticket.getPayload();
+
+  if (!payload) {
+    const error = new Error("Unable to read Google account information");
+
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const { sub, email, name, picture, email_verified: emailVerified } = payload;
+
+  const googleId = String(sub ?? "").trim();
+
+  const normalizedEmail = String(email ?? "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedName = String(name ?? "").trim();
+
+  const profileImage = String(picture ?? "").trim();
+
+  if (!googleId || !normalizedEmail) {
+    const error = new Error("Google account information is incomplete");
+
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (emailVerified !== true) {
+    const error = new Error("Google email is not verified");
+
+    error.statusCode = 401;
+    throw error;
+  }
+
+  let user = await userModel.findOne({
+    $or: [
+      {
+        googleId,
+      },
+      {
+        email: normalizedEmail,
+      },
+    ],
+  });
+
+  if (user) {
+    if (user.isBlocked) {
+      const error = new Error("Your account has been blocked");
+
+      error.statusCode = 403;
+      throw error;
+    }
+
+    if (user.googleId && String(user.googleId) !== googleId) {
+      const error = new Error(
+        "This email is connected to another Google account",
+      );
+
+      error.statusCode = 409;
+      throw error;
+    }
+
+    let shouldSave = false;
+
+    if (!user.googleId) {
+      user.googleId = googleId;
+      shouldSave = true;
+    }
+
+    if (!user.profileImage && profileImage) {
+      user.profileImage = profileImage;
+
+      shouldSave = true;
+    }
+
+    if (!user.isVerified) {
+      user.isVerified = true;
+      shouldSave = true;
+    }
+
+    if (shouldSave) {
+      await user.save();
+    }
+  } else {
+    user = await userModel.create({
+      name: normalizedName || normalizedEmail.split("@")[0],
+
+      email: normalizedEmail,
+
+      googleId,
+
+      profileImage: profileImage || null,
+
+      authProvider: "google",
+
+      isVerified: true,
+    });
+  }
+
+  const token = generateToken(user._id.toString());
+
+  return {
+    message: "Google Android authentication successful",
+
+    token,
+
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+
+      profileImage: user.profileImage ?? null,
+
+      authProvider: user.authProvider,
+
+      isVerified: user.isVerified,
+    },
+  };
 };
 
-// =======================================
-// ANDROID GOOGLE AUTH SERVICE
-// =======================================
 
-export const googleAndroidAuthService =
-  async ({ idToken }) => {
-    const payload =
-      await verifyGoogleIdToken(idToken);
-
-    const user =
-      await findOrCreateGoogleUser(payload);
-
-    return createGoogleLoginResponse(user);
-  };
 export const appleLoginService = async ({ identityToken, email, fullName }) => {
   const appleData = await verifyAppleToken(identityToken);
 
