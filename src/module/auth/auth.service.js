@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import userModel from "../../models/userModel.js";
 import signupAttemptModel from "../../models/signupAttemptModel.js";
 import mongoose from "mongoose";
+import { verifyGoogleIdToken } from "../../utils/googleClient.js";
 
 import {
   generateToken,
@@ -872,54 +873,36 @@ export const createPasswordService = async ({
 // =======================================
 
 export const googleAuthService = async (idToken) => {
+  // ---------------------------------------
+  // VALIDATE ID TOKEN
+  // ---------------------------------------
+
   const cleanIdToken = String(idToken ?? "").trim();
 
   if (!cleanIdToken) {
-    const error = new Error("Google ID token is required");
-
-    error.statusCode = 400;
-    throw error;
+    throw new ApiError(400, "Google ID token is required");
   }
 
-  const allowedClientIds = [
-    process.env.CLIENT_ID,
-    process.env.ANDROID_CLIENT_ID,
-    process.env.ANDROID_RELEASE_CLIENT_ID,
-    process.env.IOS_CLIENT_ID,
-  ]
-    .map((clientId) => String(clientId ?? "").trim())
-    .filter(Boolean);
+  // ---------------------------------------
+  // VERIFY ID TOKEN
+  // ---------------------------------------
 
-  if (allowedClientIds.length === 0) {
-    const error = new Error("Google OAuth client IDs are not configured");
-
-    error.statusCode = 500;
-    throw error;
-  }
-
-  let ticket;
+  let payload;
 
   try {
-    ticket = await googleClient.verifyIdToken({
-      idToken: cleanIdToken,
-      audience: allowedClientIds,
-    });
+    payload = await verifyGoogleIdToken(cleanIdToken);
   } catch (error) {
     console.error("GOOGLE TOKEN VERIFY ERROR:", error.message);
 
-    const authError = new Error("Invalid or expired Google ID token");
-
-    authError.statusCode = 401;
-    throw authError;
+    throw new ApiError(401, "Invalid or expired Google ID token");
   }
 
-  const payload = ticket.getPayload();
+  // ---------------------------------------
+  // VALIDATE GOOGLE PAYLOAD
+  // ---------------------------------------
 
   if (!payload) {
-    const error = new Error("Unable to read Google user information");
-
-    error.statusCode = 401;
-    throw error;
+    throw new ApiError(401, "Unable to read Google user information");
   }
 
   const { sub, email, name, picture, email_verified: emailVerified } = payload;
@@ -935,20 +918,19 @@ export const googleAuthService = async (idToken) => {
   const profileImage = String(picture ?? "").trim();
 
   if (!googleId || !normalizedEmail) {
-    const error = new Error(
+    throw new ApiError(
+      400,
       "Google account did not provide the required information",
     );
-
-    error.statusCode = 400;
-    throw error;
   }
 
   if (emailVerified !== true) {
-    const error = new Error("Google email is not verified");
-
-    error.statusCode = 401;
-    throw error;
+    throw new ApiError(401, "Google email is not verified");
   }
+
+  // ---------------------------------------
+  // FIND EXISTING USER
+  // ---------------------------------------
 
   let user = await userModel.findOne({
     $or: [
@@ -961,21 +943,20 @@ export const googleAuthService = async (idToken) => {
     ],
   });
 
+  // ---------------------------------------
+  // EXISTING USER
+  // ---------------------------------------
+
   if (user) {
     if (user.isBlocked) {
-      const error = new Error("Your account has been blocked");
-
-      error.statusCode = 403;
-      throw error;
+      throw new ApiError(403, "Your account has been blocked");
     }
 
     if (user.googleId && String(user.googleId) !== googleId) {
-      const error = new Error(
+      throw new ApiError(
+        409,
         "This email is connected to another Google account",
       );
-
-      error.statusCode = 409;
-      throw error;
     }
 
     let shouldSave = false;
@@ -997,15 +978,19 @@ export const googleAuthService = async (idToken) => {
     }
 
     /*
-     * Existing local user's authProvider
-     * is not overwritten, so local login
-     * can remain available.
+     * Agar existing user local account hai,
+     * authProvider ko change nahi karenge.
+     * Isse password login bhi available rahega.
      */
 
     if (shouldSave) {
       await user.save();
     }
   } else {
+    // ---------------------------------------
+    // CREATE NEW GOOGLE USER
+    // ---------------------------------------
+
     user = await userModel.create({
       name: normalizedName || normalizedEmail.split("@")[0],
 
@@ -1021,7 +1006,15 @@ export const googleAuthService = async (idToken) => {
     });
   }
 
+  // ---------------------------------------
+  // GENERATE APPLICATION JWT
+  // ---------------------------------------
+
   const token = generateToken(user._id.toString());
+
+  // ---------------------------------------
+  // RESPONSE
+  // ---------------------------------------
 
   return {
     message: "Google authentication successful",
@@ -1041,7 +1034,6 @@ export const googleAuthService = async (idToken) => {
     },
   };
 };
-
 // =======================================
 // GOOGLE ANDROID AUTH SERVICE
 // =======================================
@@ -1209,7 +1201,6 @@ export const googleAndroidAuthService = async ({ idToken }) => {
     },
   };
 };
-
 
 export const appleLoginService = async ({ identityToken, email, fullName }) => {
   const appleData = await verifyAppleToken(identityToken);
