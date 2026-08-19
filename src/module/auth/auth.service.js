@@ -1085,226 +1085,309 @@ export const createPasswordService = async ({
 };
 
 
+// ---------------------------------------
+// ERROR HELPER
+// ---------------------------------------
 
-export const googleAuthService = async (idToken) => {
-  if (!idToken) {
-    const error = new Error("Google ID token is required");
-    error.statusCode = 400;
-    throw error;
-  }
+const createError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
 
-  let ticket;
-
-  try {
-    ticket = await googleClient.verifyIdToken({
-      idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-  } catch (error) {
-    const authError = new Error("Invalid or expired Google ID token");
-    authError.statusCode = 401;
-    throw authError;
-  }
-
-  const payload = ticket.getPayload();
-
-  if (!payload) {
-    const error = new Error("Unable to read Google user information");
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const {
-    sub: googleId,
-    email,
-    name,
-    picture,
-    email_verified: emailVerified,
-  } = payload;
-
-  if (!googleId || !email) {
-    const error = new Error(
-      "Google account did not provide the required information",
-    );
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (!emailVerified) {
-    const error = new Error("Google email is not verified");
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const normalizedEmail = email.trim().toLowerCase();
-
-  let user = await userModel.findOne({
-    $or: [{ googleId }, { email: normalizedEmail }],
-  });
-
-  if (user) {
-    if (user.isBlocked) {
-      const error = new Error("Your account has been blocked");
-      error.statusCode = 403;
-      throw error;
-    }
-
-    let shouldSave = false;
-
-    if (!user.googleId) {
-      user.googleId = googleId;
-      shouldSave = true;
-    }
-
-    if (!user.profileImage && picture) {
-      user.profileImage = picture;
-      shouldSave = true;
-    }
-
-    if (!user.isVerified) {
-      user.isVerified = true;
-      shouldSave = true;
-    }
-
-    if (user.authProvider !== "google") {
-      user.authProvider = "google";
-      shouldSave = true;
-    }
-
-    if (shouldSave) {
-      await user.save();
-    }
-  } else {
-    user = await userModel.create({
-      name: name || normalizedEmail.split("@")[0],
-      email: normalizedEmail,
-      googleId,
-      profileImage: picture || null,
-      authProvider: "google",
-      isVerified: true,
-    });
-  }
-
-  const token = generateToken(user._id.toString());
-
-  return {
-    message: "Google authentication successful",
-    token,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      profileImage: user.profileImage,
-      authProvider: user.authProvider,
-      isVerified: user.isVerified,
-    },
-  };
+  return error;
 };
 
-export const googleAndroidAuthService = async ({ idToken }) => {
+// ---------------------------------------
+// ALLOWED GOOGLE CLIENT IDS
+// ---------------------------------------
+
+const getAllowedGoogleClientIds = () => {
+  const clientIds = [
+    process.env.CLIENT_ID,
+    process.env.ANDROID_CLIENT_ID,
+    process.env.ANDROID_RELEASE_CLIENT_ID,
+    process.env.IOS_CLIENT_ID,
+  ]
+    .map((clientId) =>
+      String(clientId ?? "").trim(),
+    )
+    .filter(Boolean);
+
+  if (clientIds.length === 0) {
+    throw createError(
+      500,
+      "Google OAuth client IDs are not configured",
+    );
+  }
+
+  return clientIds;
+};
+
+// ---------------------------------------
+// VERIFY GOOGLE ID TOKEN
+// ---------------------------------------
+
+const verifyGoogleIdToken = async (idToken) => {
+  const cleanIdToken = String(
+    idToken ?? "",
+  ).trim();
+
+  if (!cleanIdToken) {
+    throw createError(
+      400,
+      "Google ID token is required",
+    );
+  }
+
+  const allowedClientIds =
+    getAllowedGoogleClientIds();
+
   let ticket;
 
   try {
     ticket = await googleClient.verifyIdToken({
-      idToken,
-      audience: process.env.GOOGLE_ANDROID_SERVER_CLIENT_ID,
+      idToken: cleanIdToken,
+      audience: allowedClientIds,
     });
   } catch (error) {
-    console.error("GOOGLE TOKEN VERIFY ERROR:", error);
+    console.error(
+      "GOOGLE TOKEN VERIFICATION ERROR:",
+      error.message,
+    );
 
-    const authError = new Error("Invalid or expired Google ID token.");
-    authError.statusCode = 401;
-    throw authError;
+    throw createError(
+      401,
+      "Invalid or expired Google ID token",
+    );
   }
 
   const payload = ticket.getPayload();
 
   if (!payload) {
-    const error = new Error("Unable to read Google account information.");
-    error.statusCode = 401;
-    throw error;
+    throw createError(
+      401,
+      "Unable to read Google account information",
+    );
   }
 
+  return payload;
+};
+
+// ---------------------------------------
+// FIND OR CREATE GOOGLE USER
+// ---------------------------------------
+
+const findOrCreateGoogleUser = async (
+  payload,
+) => {
   const {
-    sub: googleId,
+    sub,
     email,
     name,
     picture,
     email_verified: emailVerified,
   } = payload;
 
-  if (!email || !googleId) {
-    const error = new Error("Google account information is incomplete.");
-    error.statusCode = 400;
-    throw error;
+  const googleId = String(sub ?? "").trim();
+
+  const normalizedEmail = String(
+    email ?? "",
+  )
+    .trim()
+    .toLowerCase();
+
+  const normalizedName = String(
+    name ?? "",
+  ).trim();
+
+  const profileImage = String(
+    picture ?? "",
+  ).trim();
+
+  // ---------------------------------------
+  // VALIDATE GOOGLE USER INFORMATION
+  // ---------------------------------------
+
+  if (!googleId || !normalizedEmail) {
+    throw createError(
+      400,
+      "Google account did not provide the required information",
+    );
   }
 
-  if (!emailVerified) {
-    const error = new Error("Google email is not verified.");
-    error.statusCode = 401;
-    throw error;
+  if (emailVerified !== true) {
+    throw createError(
+      401,
+      "Google email is not verified",
+    );
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
+  // ---------------------------------------
+  // FIND EXISTING USER
+  // ---------------------------------------
 
   let user = await userModel.findOne({
-    $or: [{ googleId }, { email: normalizedEmail }],
+    $or: [
+      {
+        googleId,
+      },
+      {
+        email: normalizedEmail,
+      },
+    ],
   });
+
+  // ---------------------------------------
+  // CREATE NEW USER
+  // ---------------------------------------
 
   if (!user) {
     user = await userModel.create({
-      name: name || normalizedEmail.split("@")[0],
+      name:
+        normalizedName ||
+        normalizedEmail.split("@")[0],
+
       email: normalizedEmail,
+
       googleId,
-      profileImage: picture || null,
+
+      profileImage:
+        profileImage || null,
+
       authProvider: "google",
+
       isVerified: true,
     });
-  } else {
-    let shouldSave = false;
 
-    if (!user.googleId) {
-      user.googleId = googleId;
-      shouldSave = true;
-    }
-
-    if (!user.profileImage && picture) {
-      user.profileImage = picture;
-      shouldSave = true;
-    }
-
-    if (!user.isVerified) {
-      user.isVerified = true;
-      shouldSave = true;
-    }
-
-    if (shouldSave) {
-      await user.save();
-    }
+    return user;
   }
 
-  const token = jwt.sign(
-    {
-      id: user._id,
-      email: user.email,
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: process.env.JWT_EXPIRES_IN || "7d",
-    },
+  // ---------------------------------------
+  // BLOCKED USER CHECK
+  // ---------------------------------------
+
+  if (user.isBlocked) {
+    throw createError(
+      403,
+      "Your account has been blocked",
+    );
+  }
+
+  // ---------------------------------------
+  // GOOGLE ACCOUNT CONFLICT CHECK
+  // ---------------------------------------
+
+  if (
+    user.googleId &&
+    String(user.googleId) !== googleId
+  ) {
+    throw createError(
+      409,
+      "This email is connected to another Google account",
+    );
+  }
+
+  // ---------------------------------------
+  // UPDATE EXISTING USER
+  // ---------------------------------------
+
+  let shouldSave = false;
+
+  if (!user.googleId) {
+    user.googleId = googleId;
+    shouldSave = true;
+  }
+
+  if (
+    !user.profileImage &&
+    profileImage
+  ) {
+    user.profileImage = profileImage;
+    shouldSave = true;
+  }
+
+  if (!user.isVerified) {
+    user.isVerified = true;
+    shouldSave = true;
+  }
+
+  /*
+   * Existing local user's authProvider is not
+   * changed because the user may still use
+   * email/password login.
+   *
+   * A newly created Google user's provider
+   * is already "google".
+   */
+
+  if (shouldSave) {
+    await user.save();
+  }
+
+  return user;
+};
+
+// ---------------------------------------
+// FORMAT GOOGLE LOGIN RESPONSE
+// ---------------------------------------
+
+const createGoogleLoginResponse = (user) => {
+  const token = generateToken(
+    user._id.toString(),
   );
 
   return {
+    message:
+      "Google authentication successful",
+
     token,
+
     user: {
       id: user._id,
       name: user.name,
       email: user.email,
-      profileImage: user.profileImage,
+
+      profileImage:
+        user.profileImage ?? null,
+
+      authProvider:
+        user.authProvider,
+
+      isVerified:
+        user.isVerified,
     },
   };
 };
 
+// =======================================
+// NORMAL GOOGLE AUTH SERVICE
+// =======================================
+
+export const googleAuthService = async (
+  idToken,
+) => {
+  const payload =
+    await verifyGoogleIdToken(idToken);
+
+  const user =
+    await findOrCreateGoogleUser(payload);
+
+  return createGoogleLoginResponse(user);
+};
+
+// =======================================
+// ANDROID GOOGLE AUTH SERVICE
+// =======================================
+
+export const googleAndroidAuthService =
+  async ({ idToken }) => {
+    const payload =
+      await verifyGoogleIdToken(idToken);
+
+    const user =
+      await findOrCreateGoogleUser(payload);
+
+    return createGoogleLoginResponse(user);
+  };
 export const appleLoginService = async ({ identityToken, email, fullName }) => {
   const appleData = await verifyAppleToken(identityToken);
 
