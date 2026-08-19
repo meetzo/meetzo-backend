@@ -7,6 +7,8 @@ import {
   sendEmailLoginOtp,
   verifyEmailLoginOtp,
   createPassword,
+  googleAuthController,
+  appleLogin,
 } from "./auth.controller.js";
 
 import { isAuthenticated } from "../../middleware/auth.middleware.js";
@@ -23,5 +25,10 @@ router.post("/email_login", sendEmailLoginOtp);
 router.post("/verify_email", verifyEmailLoginOtp);
 
 router.post("/create-password", isAuthenticated, createPassword);
+
+//sso routes
+
+router.post("/google_login", googleAuthController);
+router.post("/apple_login", appleLogin);
 
 export default router;

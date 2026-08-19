@@ -1083,3 +1083,315 @@ export const createPasswordService = async ({
     user: sanitizeUser(user),
   };
 };
+
+
+
+export const googleAuthService = async (idToken) => {
+  if (!idToken) {
+    const error = new Error("Google ID token is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let ticket;
+
+  try {
+    ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+  } catch (error) {
+    const authError = new Error("Invalid or expired Google ID token");
+    authError.statusCode = 401;
+    throw authError;
+  }
+
+  const payload = ticket.getPayload();
+
+  if (!payload) {
+    const error = new Error("Unable to read Google user information");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const {
+    sub: googleId,
+    email,
+    name,
+    picture,
+    email_verified: emailVerified,
+  } = payload;
+
+  if (!googleId || !email) {
+    const error = new Error(
+      "Google account did not provide the required information",
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!emailVerified) {
+    const error = new Error("Google email is not verified");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  let user = await userModel.findOne({
+    $or: [{ googleId }, { email: normalizedEmail }],
+  });
+
+  if (user) {
+    if (user.isBlocked) {
+      const error = new Error("Your account has been blocked");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    let shouldSave = false;
+
+    if (!user.googleId) {
+      user.googleId = googleId;
+      shouldSave = true;
+    }
+
+    if (!user.profileImage && picture) {
+      user.profileImage = picture;
+      shouldSave = true;
+    }
+
+    if (!user.isVerified) {
+      user.isVerified = true;
+      shouldSave = true;
+    }
+
+    if (user.authProvider !== "google") {
+      user.authProvider = "google";
+      shouldSave = true;
+    }
+
+    if (shouldSave) {
+      await user.save();
+    }
+  } else {
+    user = await userModel.create({
+      name: name || normalizedEmail.split("@")[0],
+      email: normalizedEmail,
+      googleId,
+      profileImage: picture || null,
+      authProvider: "google",
+      isVerified: true,
+    });
+  }
+
+  const token = generateToken(user._id.toString());
+
+  return {
+    message: "Google authentication successful",
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      profileImage: user.profileImage,
+      authProvider: user.authProvider,
+      isVerified: user.isVerified,
+    },
+  };
+};
+
+export const googleAndroidAuthService = async ({ idToken }) => {
+  let ticket;
+
+  try {
+    ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_ANDROID_SERVER_CLIENT_ID,
+    });
+  } catch (error) {
+    console.error("GOOGLE TOKEN VERIFY ERROR:", error);
+
+    const authError = new Error("Invalid or expired Google ID token.");
+    authError.statusCode = 401;
+    throw authError;
+  }
+
+  const payload = ticket.getPayload();
+
+  if (!payload) {
+    const error = new Error("Unable to read Google account information.");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const {
+    sub: googleId,
+    email,
+    name,
+    picture,
+    email_verified: emailVerified,
+  } = payload;
+
+  if (!email || !googleId) {
+    const error = new Error("Google account information is incomplete.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!emailVerified) {
+    const error = new Error("Google email is not verified.");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  let user = await userModel.findOne({
+    $or: [{ googleId }, { email: normalizedEmail }],
+  });
+
+  if (!user) {
+    user = await userModel.create({
+      name: name || normalizedEmail.split("@")[0],
+      email: normalizedEmail,
+      googleId,
+      profileImage: picture || null,
+      authProvider: "google",
+      isVerified: true,
+    });
+  } else {
+    let shouldSave = false;
+
+    if (!user.googleId) {
+      user.googleId = googleId;
+      shouldSave = true;
+    }
+
+    if (!user.profileImage && picture) {
+      user.profileImage = picture;
+      shouldSave = true;
+    }
+
+    if (!user.isVerified) {
+      user.isVerified = true;
+      shouldSave = true;
+    }
+
+    if (shouldSave) {
+      await user.save();
+    }
+  }
+
+  const token = jwt.sign(
+    {
+      id: user._id,
+      email: user.email,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    },
+  );
+
+  return {
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      profileImage: user.profileImage,
+    },
+  };
+};
+
+export const appleLoginService = async ({ identityToken, email, fullName }) => {
+  const appleData = await verifyAppleToken(identityToken);
+
+  const normalizedRequestEmail =
+    typeof email === "string" ? email.trim().toLowerCase() : null;
+
+  const resolvedEmail = appleData.email || normalizedRequestEmail;
+
+  const normalizedName = getAppleFullName(fullName);
+
+  let user = await userModel.findOne({
+    appleId: appleData.appleId,
+  });
+
+  if (!user && resolvedEmail) {
+    user = await userModel.findOne({
+      email: resolvedEmail,
+    });
+  }
+
+  if (user) {
+    if (user.isBlocked) {
+      const error = new Error("Your account has been blocked");
+
+      error.statusCode = 403;
+      throw error;
+    }
+
+    let shouldSave = false;
+
+    if (!user.appleId) {
+      user.appleId = appleData.appleId;
+
+      shouldSave = true;
+    }
+
+    if (normalizedName && (!user.name || user.name.trim() === "")) {
+      user.name = normalizedName;
+      shouldSave = true;
+    }
+
+    if (!user.email && resolvedEmail) {
+      user.email = resolvedEmail;
+      shouldSave = true;
+    }
+
+    if (user.authProvider !== "apple") {
+      user.authProvider = "apple";
+      shouldSave = true;
+    }
+
+    if (!user.isVerified && appleData.emailVerified) {
+      user.isVerified = true;
+      shouldSave = true;
+    }
+
+    if (shouldSave) {
+      await user.save();
+    }
+  } else {
+    user = await userModel.create({
+      name: normalizedName || resolvedEmail?.split("@")[0] || "Apple User",
+
+      email: resolvedEmail || undefined,
+
+      appleId: appleData.appleId,
+
+      authProvider: "apple",
+
+      isVerified: appleData.emailVerified,
+    });
+  }
+
+  const token = generateToken(user._id.toString());
+
+  return {
+    message: "Apple authentication successful",
+
+    token,
+
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email || null,
+      profileImage: user.profileImage || null,
+      authProvider: user.authProvider,
+      isVerified: user.isVerified,
+    },
+  };
+};

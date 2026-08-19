@@ -8,6 +8,9 @@ import {
   sendEmailLoginOtpService,
   verifyEmailLoginOtpService,
   createPasswordService,
+  googleAuthService,
+  googleAndroidAuthService,
+  appleLoginService
 } from "./auth.service.js";
 
 import ApiError from "../../utils/api.error.js";
@@ -199,3 +202,67 @@ export const createPassword = asyncHandler(async (req, res) => {
     data: result.user,
   });
 });
+
+
+
+
+
+export const googleAuthController = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Google ID token is required",
+      });
+    }
+
+    const result = await googleAuthService(idToken);
+
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      token: result.token,
+      user: result.user,
+    });
+  } catch (error) {
+    console.error("GOOGLE AUTH ERROR:", error);
+
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Google authentication failed",
+    });
+  }
+};
+
+export const appleLogin = async (req, res) => {
+  try {
+    const { identityToken, email, fullName } = req.body;
+
+    if (!identityToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Apple identity token is required",
+      });
+    }
+
+    const result = await appleLoginService({
+      identityToken,
+      email,
+      fullName,
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error("APPLE LOGIN ERROR:", error);
+
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Apple authentication failed",
+    });
+  }
+};
