@@ -32,6 +32,7 @@ const sanitizeUser = (user) => {
 const LOGIN_OTP_EXPIRY_MINUTES = 5;
 const MAX_OTP_ATTEMPTS = 5;
 const SIGNUP_OTP_EXPIRY_MINUTES = 10;
+const DUMMY_MOBILE_OTP = "1234";
 
 const generateOtpToken = (email) => {
   return jwt.sign({ email }, process.env.OTP_TOKEN_SECRET, {
@@ -1288,6 +1289,265 @@ export const appleLoginService = async ({ identityToken, email, fullName }) => {
       email: user.email || null,
       profileImage: user.profileImage || null,
       authProvider: user.authProvider,
+      isVerified: user.isVerified,
+    },
+  };
+};
+
+// ======================================================
+// DUMMY MOBILE OTP
+// ======================================================
+
+// ======================================================
+// SEND MOBILE LOGIN OTP
+// ======================================================
+
+// ======================================================
+// DUMMY MOBILE OTP
+// ======================================================
+
+// ======================================================
+// SEND MOBILE LOGIN OTP
+// EXISTING USERS ONLY
+// ======================================================
+
+export const mobileLoginService = async ({ phone }) => {
+  // ---------------------------------------
+  // NORMALIZE PHONE
+  // ---------------------------------------
+
+  const cleanPhone = String(phone ?? "").trim();
+
+  // ---------------------------------------
+  // VALIDATION
+  // ---------------------------------------
+
+  if (!cleanPhone) {
+    throw new ApiError(400, "Phone number is required");
+  }
+
+  if (!/^\+?\d{8,15}$/.test(cleanPhone)) {
+    throw new ApiError(400, "Please enter a valid phone number");
+  }
+
+  // ---------------------------------------
+  // FIND EXISTING USER
+  // ---------------------------------------
+
+  const user = await userModel.findOne({
+    phone: cleanPhone,
+  });
+
+  // ---------------------------------------
+  // USER MUST ALREADY EXIST
+  // ---------------------------------------
+
+  if (!user) {
+    throw new ApiError(404, "No account found with this phone number");
+  }
+
+  // ---------------------------------------
+  // BLOCK CHECK
+  // ---------------------------------------
+
+  if (user.isBlocked) {
+    throw new ApiError(403, "Your account has been blocked");
+  }
+
+  // ---------------------------------------
+  // SAVE DUMMY OTP
+  // ---------------------------------------
+
+  await userModel.updateOne(
+    {
+      _id: user._id,
+    },
+    {
+      $set: {
+        otp: DUMMY_MOBILE_OTP,
+
+        otpExpiry: new Date(Date.now() + 5 * 60 * 1000),
+
+        otpPurpose: "LOGIN",
+
+        otpAttempts: 0,
+      },
+    },
+  );
+
+  // ---------------------------------------
+  // RESPONSE
+  // ---------------------------------------
+
+  return {
+    phone: cleanPhone,
+
+    // Development/testing only
+    otp: DUMMY_MOBILE_OTP,
+  };
+};
+// ======================================================
+// VERIFY MOBILE LOGIN OTP
+// ======================================================
+
+// ======================================================
+// VERIFY MOBILE LOGIN OTP
+// ======================================================
+
+export const verifyMobileOtpService = async ({ phone, otp }) => {
+  // ---------------------------------------
+  // NORMALIZE INPUT
+  // ---------------------------------------
+
+  const cleanPhone = String(phone ?? "").trim();
+
+  const cleanOtp = String(otp ?? "").trim();
+
+  // ---------------------------------------
+  // VALIDATION
+  // ---------------------------------------
+
+  if (!cleanPhone) {
+    throw new ApiError(400, "Phone number is required");
+  }
+
+  if (!cleanOtp) {
+    throw new ApiError(400, "OTP is required");
+  }
+
+  if (!/^\d{4}$/.test(cleanOtp)) {
+    throw new ApiError(400, "Please enter a valid 4-digit OTP");
+  }
+
+  // ---------------------------------------
+  // FIND EXISTING USER
+  // INCLUDING HIDDEN OTP FIELDS
+  // ---------------------------------------
+
+  const user = await userModel
+    .findOne({
+      phone: cleanPhone,
+    })
+    .select("+otp +otpExpiry +otpPurpose +otpAttempts");
+
+  // ---------------------------------------
+  // USER MUST EXIST
+  // ---------------------------------------
+
+  if (!user) {
+    throw new ApiError(404, "No account found with this phone number");
+  }
+
+  // ---------------------------------------
+  // BLOCK CHECK
+  // ---------------------------------------
+
+  if (user.isBlocked) {
+    throw new ApiError(403, "Your account has been blocked");
+  }
+
+  // ---------------------------------------
+  // CHECK OTP PURPOSE
+  // ---------------------------------------
+
+  if (user.otpPurpose !== "LOGIN") {
+    throw new ApiError(400, "Please request a new login OTP");
+  }
+
+  // ---------------------------------------
+  // CHECK OTP EXISTS
+  // ---------------------------------------
+
+  if (!user.otp) {
+    throw new ApiError(400, "OTP not found. Please request a new OTP");
+  }
+
+  // ---------------------------------------
+  // CHECK OTP EXPIRY
+  // ---------------------------------------
+
+  if (!user.otpExpiry || user.otpExpiry.getTime() <= Date.now()) {
+    await userModel.updateOne(
+      {
+        _id: user._id,
+      },
+      {
+        $set: {
+          otp: null,
+          otpExpiry: null,
+          otpPurpose: null,
+          otpAttempts: 0,
+        },
+      },
+    );
+
+    throw new ApiError(400, "OTP has expired. Please request a new OTP");
+  }
+
+  // ---------------------------------------
+  // ATTEMPT LIMIT
+  // ---------------------------------------
+
+  if (Number(user.otpAttempts || 0) >= 5) {
+    throw new ApiError(
+      429,
+      "Too many invalid OTP attempts. Please request a new OTP",
+    );
+  }
+
+  // ---------------------------------------
+  // VERIFY OTP
+  // ---------------------------------------
+
+  if (String(user.otp) !== cleanOtp) {
+    user.otpAttempts = Number(user.otpAttempts || 0) + 1;
+
+    await user.save();
+
+    throw new ApiError(400, "Invalid OTP");
+  }
+
+  // ---------------------------------------
+  // OTP SUCCESS
+  // ---------------------------------------
+
+  user.otp = null;
+  user.otpExpiry = null;
+  user.otpPurpose = null;
+  user.otpAttempts = 0;
+
+  await user.save();
+
+  // ---------------------------------------
+  // GENERATE FINAL AUTH TOKEN
+  // ---------------------------------------
+
+  const token = generateToken({
+    userId: user._id,
+  });
+
+  // ---------------------------------------
+  // RESPONSE
+  // ---------------------------------------
+
+  return {
+    token,
+
+    user: {
+      _id: user._id,
+
+      name: user.name,
+
+      email: user.email,
+
+      phone: user.phone,
+
+      role: user.role,
+
+      authProvider: user.authProvider,
+
+      profileImage: user.profileImage,
+
       isVerified: user.isVerified,
     },
   };

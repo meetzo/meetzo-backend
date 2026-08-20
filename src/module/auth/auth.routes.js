@@ -9,6 +9,9 @@ import {
   createPassword,
   googleAuthController,
   appleLogin,
+  mobileLoginController,
+  verifyMobileOtpController
+
 } from "./auth.controller.js";
 
 import { isAuthenticated } from "../../middleware/auth.middleware.js";
@@ -30,6 +33,11 @@ router.post("/create-password", isAuthenticated, createPassword);
 
 router.post("/google_login", googleAuthController);
 router.post("/apple_login", appleLogin);
+
+//mobile login routes
+
+router.post("/mobile_login", mobileLoginController);
+router.post("/verify_mobile_otp", verifyMobileOtpController);
 
 
 export default router;
