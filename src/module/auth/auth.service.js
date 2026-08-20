@@ -3,6 +3,7 @@ import userModel from "../../models/userModel.js";
 import signupAttemptModel from "../../models/signupAttemptModel.js";
 import mongoose from "mongoose";
 import { verifyGoogleIdToken } from "../../utils/googleClient.js";
+import {verifyAppleIdToken} from "../../utils/appleClient.js"
 
 import {
   generateToken,
@@ -1203,93 +1204,292 @@ export const googleAndroidAuthService = async ({ idToken }) => {
   };
 };
 
-export const appleLoginService = async ({ identityToken, email, fullName }) => {
-  const appleData = await verifyAppleToken(identityToken);
+
+
+const getAppleFullName = (
+  fullName
+) => {
+  if (!fullName) {
+    return null;
+  }
+
+  // Flutter may send a normal string
+  if (typeof fullName === "string") {
+    const name =
+      fullName.trim();
+
+    return name || null;
+  }
+
+  // Or an object:
+  // {
+  //   givenName: "Chandan",
+  //   familyName: "Singh"
+  // }
+
+  if (
+    typeof fullName === "object"
+  ) {
+    const givenName =
+      String(
+        fullName.givenName ?? ""
+      ).trim();
+
+    const familyName =
+      String(
+        fullName.familyName ?? ""
+      ).trim();
+
+    const name =
+      `${givenName} ${familyName}`
+        .trim();
+
+    return name || null;
+  }
+
+  return null;
+};
+export const appleLoginService = async ({
+  identityToken,
+  email,
+  fullName,
+}) => {
+  // ---------------------------------------
+  // VALIDATE TOKEN
+  // ---------------------------------------
+
+  const cleanIdentityToken = String(
+    identityToken ?? ""
+  ).trim();
+
+  if (!cleanIdentityToken) {
+    throw new ApiError(
+      400,
+      "Apple identity token is required"
+    );
+  }
+
+  // ---------------------------------------
+  // VERIFY APPLE TOKEN
+  // ---------------------------------------
+
+  const appleData =
+    await verifyAppleIdToken(
+      cleanIdentityToken
+    );
+
+  if (!appleData?.appleId) {
+    throw new ApiError(
+      401,
+      "Invalid Apple identity token"
+    );
+  }
+
+  // ---------------------------------------
+  // NORMALIZE OPTIONAL FRONTEND EMAIL
+  // ---------------------------------------
 
   const normalizedRequestEmail =
-    typeof email === "string" ? email.trim().toLowerCase() : null;
+    typeof email === "string"
+      ? email.trim().toLowerCase()
+      : null;
 
-  const resolvedEmail = appleData.email || normalizedRequestEmail;
+  // Apple verified email takes priority.
+  const appleEmail =
+    typeof appleData.email === "string"
+      ? appleData.email
+          .trim()
+          .toLowerCase()
+      : null;
 
-  const normalizedName = getAppleFullName(fullName);
+  const resolvedEmail =
+    appleEmail ||
+    normalizedRequestEmail;
+
+  // ---------------------------------------
+  // NORMALIZE APPLE NAME
+  // ---------------------------------------
+
+  const normalizedName =
+    getAppleFullName(fullName);
+
+  // ---------------------------------------
+  // FIRST: FIND BY APPLE ID
+  // ---------------------------------------
 
   let user = await userModel.findOne({
     appleId: appleData.appleId,
   });
 
-  if (!user && resolvedEmail) {
+  // ---------------------------------------
+  // SECOND: LINK EXISTING ACCOUNT BY EMAIL
+  // ---------------------------------------
+  // Only trust email from verified Apple token
+  // when linking accounts.
+  // ---------------------------------------
+
+  if (
+    !user &&
+    appleEmail &&
+    appleData.emailVerified
+  ) {
     user = await userModel.findOne({
-      email: resolvedEmail,
+      email: appleEmail,
     });
   }
 
-  if (user) {
-    if (user.isBlocked) {
-      const error = new Error("Your account has been blocked");
+  // =======================================
+  // EXISTING USER
+  // =======================================
 
-      error.statusCode = 403;
-      throw error;
+  if (user) {
+    // -------------------------------------
+    // BLOCK CHECK
+    // -------------------------------------
+
+    if (user.isBlocked) {
+      throw new ApiError(
+        403,
+        "Your account has been blocked"
+      );
     }
 
     let shouldSave = false;
 
+    // -------------------------------------
+    // LINK APPLE ID
+    // -------------------------------------
+
     if (!user.appleId) {
-      user.appleId = appleData.appleId;
+      user.appleId =
+        appleData.appleId;
 
       shouldSave = true;
     }
 
-    if (normalizedName && (!user.name || user.name.trim() === "")) {
+    // -------------------------------------
+    // SAVE NAME IF USER DOESN'T HAVE ONE
+    // -------------------------------------
+
+    if (
+      normalizedName &&
+      (!user.name ||
+        user.name.trim() === "")
+    ) {
       user.name = normalizedName;
+
       shouldSave = true;
     }
 
-    if (!user.email && resolvedEmail) {
-      user.email = resolvedEmail;
+    // -------------------------------------
+    // SAVE VERIFIED APPLE EMAIL
+    // -------------------------------------
+
+    if (
+      !user.email &&
+      appleEmail &&
+      appleData.emailVerified
+    ) {
+      user.email = appleEmail;
+
       shouldSave = true;
     }
 
-    if (user.authProvider !== "apple") {
+    // -------------------------------------
+    // AUTH PROVIDER
+    // -------------------------------------
+
+    if (
+      user.authProvider !== "apple"
+    ) {
       user.authProvider = "apple";
+
       shouldSave = true;
     }
 
-    if (!user.isVerified && appleData.emailVerified) {
+    // -------------------------------------
+    // VERIFY USER
+    // -------------------------------------
+
+    if (
+      !user.isVerified &&
+      appleData.emailVerified
+    ) {
       user.isVerified = true;
+
       shouldSave = true;
     }
 
     if (shouldSave) {
       await user.save();
     }
-  } else {
+  }
+
+  // =======================================
+  // NEW USER
+  // =======================================
+
+  else {
     user = await userModel.create({
-      name: normalizedName || resolvedEmail?.split("@")[0] || "Apple User",
+      name:
+        normalizedName ||
+        appleEmail?.split("@")[0] ||
+        "Apple User",
 
-      email: resolvedEmail || undefined,
+      email:
+        appleEmail || undefined,
 
-      appleId: appleData.appleId,
+      appleId:
+        appleData.appleId,
 
-      authProvider: "apple",
+      authProvider:
+        "apple",
 
-      isVerified: appleData.emailVerified,
+      isVerified:
+        Boolean(
+          appleData.emailVerified
+        ),
     });
   }
 
-  const token = generateToken(user._id.toString());
+  // ---------------------------------------
+  // GENERATE YOUR APP JWT
+  // ---------------------------------------
+
+  const token = generateToken({
+    userId: user._id,
+  });
+
+  // ---------------------------------------
+  // RESPONSE
+  // ---------------------------------------
 
   return {
-    message: "Apple authentication successful",
+    message:
+      "Apple authentication successful",
 
     token,
 
     user: {
       id: user._id,
-      name: user.name,
-      email: user.email || null,
-      profileImage: user.profileImage || null,
-      authProvider: user.authProvider,
-      isVerified: user.isVerified,
+
+      name:
+        user.name,
+
+      email:
+        user.email || null,
+
+      phone:
+        user.phone || null,
+
+      profileImage:
+        user.profileImage || null,
+
+      authProvider:
+        user.authProvider,
+
+      isVerified:
+        user.isVerified,
     },
   };
 };
