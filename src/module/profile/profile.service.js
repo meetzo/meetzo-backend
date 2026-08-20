@@ -1,7 +1,7 @@
 import profileModel from "../../models/profileModel.js";
 import userModel from "../../models/userModel.js";
 import ApiError from "../../utils/api.error.js";
-import imageKit from "./imageKit.Service.js";
+import imageKit from "./imageKit.service.js";
 
 /**
  * Calculate age from date of birth.
@@ -29,10 +29,7 @@ const calculateAge = (dateOfBirth) => {
   return age;
 };
 
-/**
- * Trim array values, remove empty values
- * and remove duplicates.
- */
+
 const normalizeArray = (values) => {
   if (!Array.isArray(values)) {
     return [];

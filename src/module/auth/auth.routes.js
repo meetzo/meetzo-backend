@@ -31,4 +31,5 @@ router.post("/create-password", isAuthenticated, createPassword);
 router.post("/google_login", googleAuthController);
 router.post("/apple_login", appleLogin);
 
+
 export default router;

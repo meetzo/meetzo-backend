@@ -92,9 +92,7 @@ export const isAuthenticated = async (req, res, next) => {
   }
 };
 
-// ---------------------------------------
-// ADMIN / ROLE AUTHORIZATION
-// ---------------------------------------
+
 
 export const authorizeRoles = (...roles) => {
   return (req, res, next) => {

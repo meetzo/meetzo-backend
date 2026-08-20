@@ -10,16 +10,16 @@ const userSchema = new mongoose.Schema(
 
     email: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
       trim: true,
       lowercase: true,
     },
 
     phone: {
       type: String,
-      
       unique: true,
+      sparse: true,
       trim: true,
     },
 
@@ -34,23 +34,45 @@ const userSchema = new mongoose.Schema(
       enum: ["USER", "ADMIN"],
       default: "USER",
     },
+
     authProvider: {
       type: String,
       enum: ["local", "google", "apple"],
       default: "local",
     },
 
+    // ---------------------------------------
+    // GOOGLE LOGIN
+    // ---------------------------------------
+
     googleId: {
       type: String,
       unique: true,
       sparse: true,
       index: true,
+      default: null,
+    },
+
+    // ---------------------------------------
+    // APPLE LOGIN
+    // ---------------------------------------
+
+    appleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+      default: null,
     },
 
     profileImage: {
       type: String,
       default: null,
     },
+
+    // ---------------------------------------
+    // OTP
+    // ---------------------------------------
 
     otp: {
       type: String,
@@ -77,6 +99,10 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
+    // ---------------------------------------
+    // ACCOUNT STATUS
+    // ---------------------------------------
+
     isVerified: {
       type: Boolean,
       default: false,
@@ -94,6 +120,13 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ createdAt: -1 });
-userSchema.index({ role: 1, isBlocked: 1 });
 
-export default mongoose.model("User", userSchema);
+userSchema.index({
+  role: 1,
+  isBlocked: 1,
+});
+
+export default mongoose.model(
+  "User",
+  userSchema
+);
