@@ -7,7 +7,8 @@ import {
   saveProfileDetailsService,
   getProfileService,
   updateProfileService,
-  addProfilePictureService
+  addProfilePictureService,
+  getProfilesByGenderService,
 } from "./profile.service.js";
 
 export const saveProfileDetailsController = asyncHandler(async (req, res) => {
@@ -62,6 +63,27 @@ export const addProfilePicture = asyncHandler(
       success: true,
       message: "Profile picture updated successfully",
       data: result,
+    });
+  }
+);
+
+export const getProfilesByGenderController = asyncHandler(
+  async (req, res) => {
+    const currentUserId =
+      req.user?._id || req.user?.id;
+
+    const result = await getProfilesByGenderService({
+      currentUserId,
+      genders: req.query.genders,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Discovery profiles fetched successfully",
+      data: result.profiles,
+      pagination: result.pagination,
     });
   }
 );
