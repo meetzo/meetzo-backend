@@ -1,7 +1,7 @@
 import profileModel from "../../models/profileModel.js";
 import userModel from "../../models/userModel.js";
 import ApiError from "../../utils/api.error.js";
-import imageKit from "./imageKit.Service.js";
+import imageKit from "./imageKit.service.js";
 
 /**
  * Calculate age from date of birth.
@@ -12,7 +12,6 @@ const calculateAge = (dateOfBirth) => {
   if (Number.isNaN(dob.getTime())) {
     throw new ApiError(400, "Invalid date of birth");
   }
-
   const today = new Date();
 
   let age = today.getFullYear() - dob.getFullYear();
