@@ -721,3 +721,192 @@ export const addProfilePictureService = async ({ userId, file }) => {
     profileImageId: user.profileImageId,
   };
 };
+
+
+const ALLOWED_GENDERS = [
+  "MALE",
+  "FEMALE",
+  "NON_BINARY",
+  "OTHER",
+];
+
+const parseGenderQuery = (genders) => {
+  if (!genders) {
+    throw new ApiError(
+      400,
+      "genders query parameter is required"
+    );
+  }
+
+  const genderValues = Array.isArray(genders)
+    ? genders
+    : String(genders).split(",");
+
+  const normalizedGenders = [
+    ...new Set(
+      genderValues
+        .map((gender) =>
+          String(gender).trim().toUpperCase()
+        )
+        .filter(Boolean)
+    ),
+  ];
+
+  if (normalizedGenders.length === 0) {
+    throw new ApiError(
+      400,
+      "At least one gender must be selected"
+    );
+  }
+
+  const invalidGenders = normalizedGenders.filter(
+    (gender) => !ALLOWED_GENDERS.includes(gender)
+  );
+
+  if (invalidGenders.length > 0) {
+    throw new ApiError(
+      400,
+      `Invalid genders: ${invalidGenders.join(", ")}`
+    );
+  }
+
+  return normalizedGenders;
+};
+
+export const getProfilesByGenderService = async ({
+  currentUserId,
+  genders,
+  page = 1,
+  limit = 10,
+}) => {
+  // Authentication
+  if (!currentUserId) {
+    throw new ApiError(
+      401,
+      "Authentication is required"
+    );
+  }
+
+  // Check current user
+  const currentUser = await userModel
+    .findById(currentUserId)
+    .select("_id isBlocked");
+
+  if (!currentUser) {
+    throw new ApiError(404, "User not found");
+  }
+
+  if (currentUser.isBlocked) {
+    throw new ApiError(
+      403,
+      "Your account has been blocked"
+    );
+  }
+
+  // Validate genders
+  const selectedGenders =
+    parseGenderQuery(genders);
+
+  // Pagination
+  const normalizedPage = Math.max(
+    Number.parseInt(page, 10) || 1,
+    1
+  );
+
+  const normalizedLimit = Math.min(
+    Math.max(Number.parseInt(limit, 10) || 10, 1),
+    50
+  );
+
+  const skip =
+    (normalizedPage - 1) * normalizedLimit;
+
+  // Discovery filter
+  const filter = {
+    userId: {
+      $ne: currentUserId,
+    },
+
+    gender: {
+      $in: selectedGenders,
+    },
+
+    isProfileCompleted: true,
+  };
+
+  const [profiles, totalProfiles] =
+    await Promise.all([
+      profileModel
+        .find(filter)
+        .populate({
+          path: "userId",
+          select:
+            "name email phone isVerified isBlocked",
+        })
+        .select(
+          [
+            "userId",
+            "profileImage",
+            "dateOfBirth",
+            "height",
+            "languages",
+            "gender",
+            "genderDescription",
+            "showGenderOnProfile",
+            "profession",
+            "customProfession",
+            "orientation",
+            "customOrientation",
+            "showOrientationOnProfile",
+            "meetzoGoal",
+            "relationshipPace",
+            "smoking",
+            "drinking",
+            "fitness",
+            "pets",
+            "selfDescription",
+            "interests",
+            "religion",
+            "idealWeekend",
+            "values",
+            "bio",
+            "education",
+            "college",
+            "company",
+            "jobTitle",
+            "city",
+            "hometown",
+            "isFaceVerified",
+            "isKycVerified",
+            "createdAt",
+          ].join(" ")
+        )
+        .sort({
+          createdAt: -1,
+        })
+        .skip(skip)
+        .limit(normalizedLimit)
+        .lean(),
+
+      profileModel.countDocuments(filter),
+    ]);
+
+  const totalPages = Math.ceil(
+    totalProfiles / normalizedLimit
+  );
+
+  return {
+    profiles,
+
+    pagination: {
+      currentPage: normalizedPage,
+      limit: normalizedLimit,
+      totalProfiles,
+      totalPages,
+      hasNextPage:
+        normalizedPage < totalPages,
+      hasPreviousPage:
+        normalizedPage > 1,
+    },
+  };
+};
