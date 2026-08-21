@@ -193,10 +193,234 @@ export const signupService = async ({ name, email, phone }) => {
 // VERIFY SIGNUP OTP SERVICE
 // =====================================================
 
+// export const verifySignupOtpService = async ({ otpToken, otp }) => {
+//   // ---------------------------------------
+//   // VALIDATION
+//   // ---------------------------------------
+
+//   if (!otpToken) {
+//     throw new ApiError(401, "OTP token is required");
+//   }
+
+//   const cleanOtp = String(otp ?? "").trim();
+
+//   if (!cleanOtp) {
+//     throw new ApiError(400, "OTP is required");
+//   }
+
+//   if (!/^\d{4}$/.test(cleanOtp)) {
+//     throw new ApiError(400, "Please enter a valid 4-digit OTP");
+//   }
+
+//   // ---------------------------------------
+//   // VERIFY OTP SESSION TOKEN
+//   // ---------------------------------------
+
+//   let payload;
+
+//   try {
+//     payload = jwt.verify(otpToken, process.env.OTP_TOKEN_SECRET);
+//   } catch (error) {
+//     if (error?.name === "TokenExpiredError") {
+//       throw new ApiError(401, "OTP session has expired. Please signup again.");
+//     }
+
+//     throw new ApiError(401, "Invalid OTP session");
+//   }
+
+//   // ---------------------------------------
+//   // CHECK TOKEN PURPOSE
+//   // ---------------------------------------
+
+//   if (payload.purpose !== "SIGNUP_OTP") {
+//     throw new ApiError(401, "Invalid signup OTP token");
+//   }
+
+//   // ---------------------------------------
+//   // CHECK SIGNUP ATTEMPT ID
+//   // ---------------------------------------
+
+//   if (!payload.signupAttemptId) {
+//     throw new ApiError(401, "Invalid signup session");
+//   }
+
+//   // ---------------------------------------
+//   // FIND SIGNUP ATTEMPT
+//   // ---------------------------------------
+
+//   const signupAttempt = await signupAttemptModel
+//     .findById(payload.signupAttemptId)
+//     .select("+otpHash");
+
+//   if (!signupAttempt) {
+//     throw new ApiError(
+//       404,
+//       "Signup session not found or expired. Please signup again.",
+//     );
+//   }
+
+//   // ---------------------------------------
+//   // CHECK OTP EXPIRY
+//   // ---------------------------------------
+
+//   if (
+//     !signupAttempt.otpExpiresAt ||
+//     signupAttempt.otpExpiresAt.getTime() <= Date.now()
+//   ) {
+//     await signupAttemptModel.deleteOne({
+//       _id: signupAttempt._id,
+//     });
+
+//     throw new ApiError(400, "OTP has expired. Please signup again.");
+//   }
+
+//   // ---------------------------------------
+//   // CHECK MAX OTP ATTEMPTS
+//   // ---------------------------------------
+
+//   if (signupAttempt.attempts >= MAX_OTP_ATTEMPTS) {
+//     await signupAttemptModel.deleteOne({
+//       _id: signupAttempt._id,
+//     });
+
+//     throw new ApiError(
+//       429,
+//       "Too many incorrect OTP attempts. Please signup again.",
+//     );
+//   }
+
+//   // ---------------------------------------
+//   // VERIFY OTP
+//   // ---------------------------------------
+
+//   const isOtpValid = await bcrypt.compare(cleanOtp, signupAttempt.otpHash);
+
+//   if (!isOtpValid) {
+//     signupAttempt.attempts += 1;
+
+//     await signupAttempt.save();
+
+//     const attemptsLeft = MAX_OTP_ATTEMPTS - signupAttempt.attempts;
+
+//     throw new ApiError(
+//       400,
+//       attemptsLeft > 0
+//         ? `Invalid OTP. ${attemptsLeft} attempts remaining.`
+//         : "Too many incorrect OTP attempts. Please signup again.",
+//     );
+//   }
+
+//   // ---------------------------------------
+//   // CHECK USER AGAIN
+//   // ---------------------------------------
+//   // Important because another request might
+//   // have created the account meanwhile.
+//   // ---------------------------------------
+
+//   const existingUser = await userModel.findOne({
+//     $or: [
+//       {
+//         email: signupAttempt.email,
+//       },
+//       {
+//         phone: signupAttempt.phone,
+//       },
+//     ],
+//   });
+
+//   if (existingUser) {
+//     await signupAttemptModel.deleteOne({
+//       _id: signupAttempt._id,
+//     });
+
+//     throw new ApiError(409, "User already registered with this email or phone");
+//   }
+
+//   // ---------------------------------------
+//   // CREATE ACTUAL USER
+//   // ONLY AFTER OTP VERIFIED ✅
+//   // ---------------------------------------
+
+//   let user;
+
+//   try {
+//     user = await userModel.create({
+//       name: signupAttempt.name,
+
+//       email: signupAttempt.email,
+
+//       phone: signupAttempt.phone,
+
+//       isVerified: true,
+
+//       isBlocked: false,
+//     });
+//   } catch (error) {
+//     // Mongo unique index race-condition protection
+//     if (error?.code === 11000) {
+//       throw new ApiError(409, "User already registered");
+//     }
+
+//     throw error;
+//   }
+
+//   // ---------------------------------------
+//   // DELETE SIGNUP ATTEMPT
+//   // ---------------------------------------
+
+//   await signupAttemptModel.deleteOne({
+//     _id: signupAttempt._id,
+//   });
+
+//   // ---------------------------------------
+//   // GENERATE LOGIN JWT
+//   // ---------------------------------------
+
+//   const token = generateToken(user._id.toString());
+
+//   // ---------------------------------------
+//   // SAFE USER RESPONSE
+//   // ---------------------------------------
+
+//   const safeUser = {
+//     id: user._id,
+
+//     name: user.name,
+
+//     email: user.email,
+
+//     phone: user.phone,
+
+//     role: user.role,
+
+//     isVerified: user.isVerified,
+
+//     isBlocked: user.isBlocked,
+
+//     profileImage: user.profileImage ?? null,
+
+//     kycStatus: user.kycStatus,
+
+//     isKycVerified: user.isKycVerified,
+
+//     createdAt: user.createdAt,
+//   };
+
+//   return {
+//     success: true,
+
+//     message: "Account verified and registered successfully",
+
+//     token,
+
+//     user: safeUser,
+//   };
+// };
+
 export const verifySignupOtpService = async ({ otpToken, otp }) => {
-  // ---------------------------------------
-  // VALIDATION
-  // ---------------------------------------
+  // ==========================================
+  // 1. VALIDATION
+  // ==========================================
 
   if (!otpToken) {
     throw new ApiError(401, "OTP token is required");
@@ -212,41 +436,53 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
     throw new ApiError(400, "Please enter a valid 4-digit OTP");
   }
 
-  // ---------------------------------------
-  // VERIFY OTP SESSION TOKEN
-  // ---------------------------------------
+  // ==========================================
+  // 2. VERIFY OTP SESSION TOKEN
+  // ==========================================
 
   let payload;
 
   try {
-    payload = jwt.verify(otpToken, process.env.OTP_TOKEN_SECRET);
+    payload = jwt.verify(
+      otpToken,
+      process.env.OTP_TOKEN_SECRET
+    );
   } catch (error) {
     if (error?.name === "TokenExpiredError") {
-      throw new ApiError(401, "OTP session has expired. Please signup again.");
+      throw new ApiError(
+        401,
+        "OTP session has expired. Please signup again."
+      );
     }
 
     throw new ApiError(401, "Invalid OTP session");
   }
 
-  // ---------------------------------------
-  // CHECK TOKEN PURPOSE
-  // ---------------------------------------
+  // ==========================================
+  // 3. CHECK TOKEN PURPOSE
+  // ==========================================
 
-  if (payload.purpose !== "SIGNUP_OTP") {
-    throw new ApiError(401, "Invalid signup OTP token");
+  if (payload?.purpose !== "SIGNUP_OTP") {
+    throw new ApiError(
+      401,
+      "Invalid signup OTP token"
+    );
   }
 
-  // ---------------------------------------
-  // CHECK SIGNUP ATTEMPT ID
-  // ---------------------------------------
+  // ==========================================
+  // 4. CHECK SIGNUP ATTEMPT ID
+  // ==========================================
 
-  if (!payload.signupAttemptId) {
-    throw new ApiError(401, "Invalid signup session");
+  if (!payload?.signupAttemptId) {
+    throw new ApiError(
+      401,
+      "Invalid signup session"
+    );
   }
 
-  // ---------------------------------------
-  // FIND SIGNUP ATTEMPT
-  // ---------------------------------------
+  // ==========================================
+  // 5. FIND SIGNUP ATTEMPT
+  // ==========================================
 
   const signupAttempt = await signupAttemptModel
     .findById(payload.signupAttemptId)
@@ -255,13 +491,52 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
   if (!signupAttempt) {
     throw new ApiError(
       404,
-      "Signup session not found or expired. Please signup again.",
+      "Signup session not found or expired. Please signup again."
     );
   }
 
-  // ---------------------------------------
-  // CHECK OTP EXPIRY
-  // ---------------------------------------
+  // ==========================================
+  // 6. NORMALIZE SIGNUP DATA
+  // ==========================================
+
+  const normalizedEmail = String(
+    signupAttempt.email ?? ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const normalizedPhone = String(
+    signupAttempt.phone ?? ""
+  ).trim();
+
+  const normalizedName = String(
+    signupAttempt.name ?? ""
+  ).trim();
+
+  if (!normalizedEmail) {
+    throw new ApiError(
+      400,
+      "Signup email is missing"
+    );
+  }
+
+  if (!normalizedPhone) {
+    throw new ApiError(
+      400,
+      "Signup phone number is missing"
+    );
+  }
+
+  if (!normalizedName) {
+    throw new ApiError(
+      400,
+      "Signup name is missing"
+    );
+  }
+
+  // ==========================================
+  // 7. CHECK OTP EXPIRY
+  // ==========================================
 
   if (
     !signupAttempt.otpExpiresAt ||
@@ -271,59 +546,76 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
       _id: signupAttempt._id,
     });
 
-    throw new ApiError(400, "OTP has expired. Please signup again.");
+    throw new ApiError(
+      400,
+      "OTP has expired. Please signup again."
+    );
   }
 
-  // ---------------------------------------
-  // CHECK MAX OTP ATTEMPTS
-  // ---------------------------------------
+  // ==========================================
+  // 8. CHECK MAX OTP ATTEMPTS
+  // ==========================================
 
-  if (signupAttempt.attempts >= MAX_OTP_ATTEMPTS) {
+  if (
+    Number(signupAttempt.attempts ?? 0) >=
+    MAX_OTP_ATTEMPTS
+  ) {
     await signupAttemptModel.deleteOne({
       _id: signupAttempt._id,
     });
 
     throw new ApiError(
       429,
-      "Too many incorrect OTP attempts. Please signup again.",
+      "Too many incorrect OTP attempts. Please signup again."
     );
   }
 
-  // ---------------------------------------
-  // VERIFY OTP
-  // ---------------------------------------
+  // ==========================================
+  // 9. VERIFY OTP
+  // ==========================================
 
-  const isOtpValid = await bcrypt.compare(cleanOtp, signupAttempt.otpHash);
+  const isOtpValid = await bcrypt.compare(
+    cleanOtp,
+    signupAttempt.otpHash
+  );
 
   if (!isOtpValid) {
-    signupAttempt.attempts += 1;
+    signupAttempt.attempts =
+      Number(signupAttempt.attempts ?? 0) + 1;
+
+    const attemptsLeft =
+      MAX_OTP_ATTEMPTS - signupAttempt.attempts;
+
+    if (attemptsLeft <= 0) {
+      await signupAttemptModel.deleteOne({
+        _id: signupAttempt._id,
+      });
+
+      throw new ApiError(
+        429,
+        "Too many incorrect OTP attempts. Please signup again."
+      );
+    }
 
     await signupAttempt.save();
 
-    const attemptsLeft = MAX_OTP_ATTEMPTS - signupAttempt.attempts;
-
     throw new ApiError(
       400,
-      attemptsLeft > 0
-        ? `Invalid OTP. ${attemptsLeft} attempts remaining.`
-        : "Too many incorrect OTP attempts. Please signup again.",
+      `Invalid OTP. ${attemptsLeft} attempts remaining.`
     );
   }
 
-  // ---------------------------------------
-  // CHECK USER AGAIN
-  // ---------------------------------------
-  // Important because another request might
-  // have created the account meanwhile.
-  // ---------------------------------------
+  // ==========================================
+  // 10. CHECK USER AGAIN
+  // ==========================================
 
   const existingUser = await userModel.findOne({
     $or: [
       {
-        email: signupAttempt.email,
+        email: normalizedEmail,
       },
       {
-        phone: signupAttempt.phone,
+        phone: normalizedPhone,
       },
     ],
   });
@@ -333,54 +625,205 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
       _id: signupAttempt._id,
     });
 
-    throw new ApiError(409, "User already registered with this email or phone");
+    if (
+      existingUser.email &&
+      existingUser.email === normalizedEmail
+    ) {
+      throw new ApiError(
+        409,
+        "User already registered with this email"
+      );
+    }
+
+    if (
+      existingUser.phone &&
+      existingUser.phone === normalizedPhone
+    ) {
+      throw new ApiError(
+        409,
+        "User already registered with this phone number"
+      );
+    }
+
+    throw new ApiError(
+      409,
+      "User already registered"
+    );
   }
 
-  // ---------------------------------------
-  // CREATE ACTUAL USER
-  // ONLY AFTER OTP VERIFIED ✅
-  // ---------------------------------------
+  // ==========================================
+  // 11. CREATE ACTUAL USER
+  // ==========================================
 
   let user;
 
   try {
     user = await userModel.create({
-      name: signupAttempt.name,
+      name: normalizedName,
+      email: normalizedEmail,
+      phone: normalizedPhone,
 
-      email: signupAttempt.email,
-
-      phone: signupAttempt.phone,
+      // Explicitly local signup
+      authProvider: "local",
 
       isVerified: true,
-
       isBlocked: false,
     });
   } catch (error) {
-    // Mongo unique index race-condition protection
+    // ========================================
+    // DEBUG ACTUAL DATABASE ERROR
+    // ========================================
+
+    console.error(
+      "========== USER CREATE ERROR =========="
+    );
+
+    console.error(
+      "Error code:",
+      error?.code
+    );
+
+    console.error(
+      "Key pattern:",
+      error?.keyPattern
+    );
+
+    console.error(
+      "Key value:",
+      error?.keyValue
+    );
+
+    console.error(
+      "Mongo message:",
+      error?.message
+    );
+
+    console.error(
+      "======================================="
+    );
+
+    // ========================================
+    // HANDLE DUPLICATE KEY
+    // ========================================
+
     if (error?.code === 11000) {
-      throw new ApiError(409, "User already registered");
+      const duplicateField =
+        Object.keys(error?.keyPattern ?? {})[0] ||
+        Object.keys(error?.keyValue ?? {})[0];
+
+      const duplicateValue =
+        duplicateField
+          ? error?.keyValue?.[duplicateField]
+          : undefined;
+
+      console.error(
+        "Duplicate field:",
+        duplicateField
+      );
+
+      console.error(
+        "Duplicate value:",
+        duplicateValue
+      );
+
+      // EMAIL
+      if (duplicateField === "email") {
+        throw new ApiError(
+          409,
+          "User already registered with this email"
+        );
+      }
+
+      // PHONE
+      if (
+        duplicateField === "phone" ||
+        duplicateField === "fullPhone"
+      ) {
+        // Important for debugging old/null indexes
+        if (
+          duplicateValue === null ||
+          duplicateValue === undefined
+        ) {
+          throw new ApiError(
+            409,
+            `Database unique index issue on ${duplicateField}. Duplicate null value detected.`
+          );
+        }
+
+        throw new ApiError(
+          409,
+          "User already registered with this phone number"
+        );
+      }
+
+      // GOOGLE ID
+      if (duplicateField === "googleId") {
+        if (
+          duplicateValue === null ||
+          duplicateValue === undefined
+        ) {
+          throw new ApiError(
+            409,
+            "Database unique index issue on googleId. Duplicate null value detected."
+          );
+        }
+
+        throw new ApiError(
+          409,
+          "This Google account is already registered"
+        );
+      }
+
+      // APPLE ID
+      if (duplicateField === "appleId") {
+        if (
+          duplicateValue === null ||
+          duplicateValue === undefined
+        ) {
+          throw new ApiError(
+            409,
+            "Database unique index issue on appleId. Duplicate null value detected."
+          );
+        }
+
+        throw new ApiError(
+          409,
+          "This Apple account is already registered"
+        );
+      }
+
+      // ANY OTHER UNIQUE FIELD
+      throw new ApiError(
+        409,
+        duplicateField
+          ? `Duplicate value found for unique field: ${duplicateField}`
+          : "Duplicate user data found"
+      );
     }
 
+    // Any non-Mongo duplicate error
     throw error;
   }
 
-  // ---------------------------------------
-  // DELETE SIGNUP ATTEMPT
-  // ---------------------------------------
+  // ==========================================
+  // 12. DELETE SIGNUP ATTEMPT
+  // ==========================================
 
   await signupAttemptModel.deleteOne({
     _id: signupAttempt._id,
   });
 
-  // ---------------------------------------
-  // GENERATE LOGIN JWT
-  // ---------------------------------------
+  // ==========================================
+  // 13. GENERATE LOGIN TOKEN
+  // ==========================================
 
-  const token = generateToken(user._id.toString());
+  const token = generateToken(
+    user._id.toString()
+  );
 
-  // ---------------------------------------
-  // SAFE USER RESPONSE
-  // ---------------------------------------
+  // ==========================================
+  // 14. SAFE USER RESPONSE
+  // ==========================================
 
   const safeUser = {
     id: user._id,
@@ -391,31 +834,40 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
 
     phone: user.phone,
 
-    role: user.role,
+    role: user.role ?? user.type,
 
     isVerified: user.isVerified,
 
     isBlocked: user.isBlocked,
 
-    profileImage: user.profileImage ?? null,
+    profileImage:
+      user.profileImage ?? null,
 
-    kycStatus: user.kycStatus,
+    kycStatus:
+      user.kycStatus ?? null,
 
-    isKycVerified: user.isKycVerified,
+    isKycVerified:
+      user.isKycVerified ?? false,
 
     createdAt: user.createdAt,
   };
 
+  // ==========================================
+  // 15. RESPONSE
+  // ==========================================
+
   return {
     success: true,
 
-    message: "Account verified and registered successfully",
+    message:
+      "Account verified and registered successfully",
 
     token,
 
     user: safeUser,
   };
 };
+
 
 // Login service
 export const loginService = async ({ email, password }) => {
