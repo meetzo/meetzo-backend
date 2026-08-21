@@ -16,7 +16,7 @@ const heightSchema = new mongoose.Schema(
   },
   {
     _id: false,
-  }
+  },
 );
 
 const profileSchema = new mongoose.Schema(
@@ -63,11 +63,8 @@ const profileSchema = new mongoose.Schema(
       type: [String],
       required: true,
       validate: {
-        validator: (value) =>
-          Array.isArray(value) &&
-          value.length > 0,
-        message:
-          "At least one language is required",
+        validator: (value) => Array.isArray(value) && value.length > 0,
+        message: "At least one language is required",
       },
     },
 
@@ -77,12 +74,7 @@ const profileSchema = new mongoose.Schema(
 
     gender: {
       type: String,
-      enum: [
-        "MALE",
-        "FEMALE",
-        "NON_BINARY",
-        "OTHER",
-      ],
+      enum: ["MALE", "FEMALE", "NON_BINARY", "OTHER"],
       required: true,
     },
 
@@ -128,13 +120,7 @@ const profileSchema = new mongoose.Schema(
 
     orientation: {
       type: String,
-      enum: [
-        "STRAIGHT",
-        "AROMANTIC",
-        "BISEXUAL",
-        "GAY",
-        "OTHER",
-      ],
+      enum: ["STRAIGHT", "AROMANTIC", "BISEXUAL", "GAY", "OTHER"],
       required: true,
     },
 
@@ -186,23 +172,13 @@ const profileSchema = new mongoose.Schema(
 
     smoking: {
       type: String,
-      enum: [
-        "YES",
-        "NO",
-        "OCCASIONALLY",
-        "PREFER_NOT_TO_SAY",
-      ],
+      enum: ["YES", "NO", "OCCASIONALLY", "PREFER_NOT_TO_SAY"],
       required: true,
     },
 
     drinking: {
       type: String,
-      enum: [
-        "YES",
-        "NO",
-        "OCCASIONALLY",
-        "PREFER_NOT_TO_SAY",
-      ],
+      enum: ["YES", "NO", "OCCASIONALLY", "PREFER_NOT_TO_SAY"],
       required: true,
     },
 
@@ -219,12 +195,7 @@ const profileSchema = new mongoose.Schema(
 
     pets: {
       type: String,
-      enum: [
-        "YES",
-        "NO",
-        "OCCASIONALLY",
-        "PREFER_NOT_TO_SAY",
-      ],
+      enum: ["YES", "NO", "OCCASIONALLY", "PREFER_NOT_TO_SAY"],
       required: true,
     },
 
@@ -237,11 +208,8 @@ const profileSchema = new mongoose.Schema(
       required: true,
       validate: {
         validator: (value) =>
-          Array.isArray(value) &&
-          value.length >= 1 &&
-          value.length <= 3,
-        message:
-          "Select between 1 and 3 personality traits",
+          Array.isArray(value) && value.length >= 1 && value.length <= 3,
+        message: "Select between 1 and 3 personality traits",
       },
     },
 
@@ -250,11 +218,8 @@ const profileSchema = new mongoose.Schema(
       required: true,
       validate: {
         validator: (value) =>
-          Array.isArray(value) &&
-          value.length >= 1 &&
-          value.length <= 5,
-        message:
-          "Select between 1 and 5 interests",
+          Array.isArray(value) && value.length >= 1 && value.length <= 5,
+        message: "Select between 1 and 5 interests",
       },
     },
 
@@ -294,11 +259,8 @@ const profileSchema = new mongoose.Schema(
       required: true,
       validate: {
         validator: (value) =>
-          Array.isArray(value) &&
-          value.length >= 1 &&
-          value.length <= 3,
-        message:
-          "Select between 1 and 3 weekend preferences",
+          Array.isArray(value) && value.length >= 1 && value.length <= 3,
+        message: "Select between 1 and 3 weekend preferences",
       },
     },
 
@@ -307,11 +269,8 @@ const profileSchema = new mongoose.Schema(
       required: true,
       validate: {
         validator: (value) =>
-          Array.isArray(value) &&
-          value.length >= 1 &&
-          value.length <= 3,
-        message:
-          "Select between 1 and 3 values",
+          Array.isArray(value) && value.length >= 1 && value.length <= 3,
+        message: "Select between 1 and 3 values",
       },
     },
 
@@ -374,13 +333,7 @@ const profileSchema = new mongoose.Schema(
 
     kycDocumentType: {
       type: String,
-      enum: [
-        "AADHAAR",
-        "PAN",
-        "PASSPORT",
-        "DRIVING_LICENCE",
-        "VOTER_ID",
-      ],
+      enum: ["AADHAAR", "PAN", "PASSPORT", "DRIVING_LICENCE", "VOTER_ID"],
       default: null,
     },
 
@@ -410,12 +363,7 @@ const profileSchema = new mongoose.Schema(
 
     kycStatus: {
       type: String,
-      enum: [
-        "NOT_STARTED",
-        "PENDING",
-        "VERIFIED",
-        "REJECTED",
-      ],
+      enum: ["NOT_STARTED", "PENDING", "VERIFIED", "REJECTED"],
       default: "NOT_STARTED",
     },
 
@@ -457,12 +405,7 @@ const profileSchema = new mongoose.Schema(
 
     faceVerificationStatus: {
       type: String,
-      enum: [
-        "NOT_STARTED",
-        "PENDING",
-        "VERIFIED",
-        "REJECTED",
-      ],
+      enum: ["NOT_STARTED", "PENDING", "VERIFIED", "REJECTED"],
       default: "NOT_STARTED",
     },
 
@@ -494,21 +437,18 @@ const profileSchema = new mongoose.Schema(
 
     isProfileCompleted: {
       type: Boolean,
-      default: true,
+      default: false,
     },
 
     completedAt: {
       type: Date,
-      default: Date.now,
+      default: null,
     },
   },
   {
     timestamps: true,
     versionKey: false,
-  }
+  },
 );
 
-export default mongoose.model(
-  "Profile",
-  profileSchema
-);
+export default mongoose.model("Profile", profileSchema);

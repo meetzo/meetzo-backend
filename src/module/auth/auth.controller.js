@@ -32,11 +32,6 @@ export const signup = asyncHandler(async (req, res) => {
   });
 });
 
-
-
-
-
-
 // =====================================================
 // VERIFY SIGNUP OTP
 // =====================================================
@@ -119,7 +114,6 @@ export const getMyProfile = asyncHandler(async (req, res) => {
   });
 });
 
-
 // ======================================================
 // SEND EMAIL LOGIN OTP
 // ======================================================
@@ -140,7 +134,6 @@ export const sendEmailLoginOtp = asyncHandler(
     });
   },
 );
-
 
 // ======================================================
 // VERIFY EMAIL LOGIN OTP
@@ -202,10 +195,6 @@ export const createPassword = asyncHandler(async (req, res) => {
     data: result.user,
   });
 });
-
-
-
-
 
 export const googleAuthController = async (req, res) => {
   try {

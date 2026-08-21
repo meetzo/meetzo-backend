@@ -6,6 +6,7 @@ import {
   updateProfileController,
   addProfilePicture,
   getProfilesByGenderController,
+  getProfileCompletionController,
 } from "./profile.controller.js";
 
 import { uploadProfilePicture } from "../../middleware/upload.middleware.js";
@@ -28,9 +29,15 @@ router.patch(
 );
 
 router.get(
-  "/discovery",
+  "/get-profiles-by-gender",
   isAuthenticated,
   getProfilesByGenderController
+);
+
+router.get(
+  "/completion",
+  isAuthenticated,
+  getProfileCompletionController
 );
 
 export default router;

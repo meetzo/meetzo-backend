@@ -2,6 +2,9 @@ import profileModel from "../../models/profileModel.js";
 import userModel from "../../models/userModel.js";
 import ApiError from "../../utils/api.error.js";
 import imageKit from "./imageKit.service.js";
+import {
+  calculateProfileCompletion,
+} from "../../utils/calculateProfileCompletion.js";
 
 /**
  * Calculate age from date of birth.
@@ -909,4 +912,65 @@ export const getProfilesByGenderService = async ({
         normalizedPage > 1,
     },
   };
+};
+
+export const getProfileCompletionService = async ({
+  userId,
+}) => {
+  if (!userId) {
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  const profile = await profileModel
+    .findOne({ userId })
+    .lean();
+
+  if (!profile) {
+    return {
+      completionPercentage: 0,
+      isProfileCompleted: false,
+
+      breakdown: {
+        details: {
+          earned: 0,
+          total: 40,
+        },
+
+        profilePhoto: {
+          earned: 0,
+          total: 15,
+          completed: false,
+        },
+
+        kyc: {
+          earned: 0,
+          total: 15,
+          completed: false,
+          status: "NOT_STARTED",
+        },
+
+        faceVerification: {
+          earned: 0,
+          total: 15,
+          completed: false,
+          status: "NOT_STARTED",
+        },
+
+        optionalDetails: {
+          earned: 0,
+          total: 15,
+        },
+      },
+
+      missingSections: [
+        "DETAILS",
+        "PROFILE_PHOTO",
+        "KYC",
+        "FACE_VERIFICATION",
+        "OPTIONAL_DETAILS",
+      ],
+    };
+  }
+
+  return calculateProfileCompletion(profile);
 };

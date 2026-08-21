@@ -9,6 +9,7 @@ import {
   updateProfileService,
   addProfilePictureService,
   getProfilesByGenderService,
+  getProfileCompletionService,
 } from "./profile.service.js";
 
 export const saveProfileDetailsController = asyncHandler(async (req, res) => {
@@ -84,6 +85,27 @@ export const getProfilesByGenderController = asyncHandler(
       message: "Discovery profiles fetched successfully",
       data: result.profiles,
       pagination: result.pagination,
+    });
+  }
+);
+
+export const getProfileCompletionController = asyncHandler(
+  async (req, res) => {
+    const userId =
+      req.user?._id ||
+      req.user?.id ||
+      req.userId;
+
+    const result =
+      await getProfileCompletionService({
+        userId,
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Profile completion fetched successfully",
+      data: result,
     });
   }
 );
