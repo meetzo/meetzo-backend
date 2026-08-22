@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema(
 
     email: {
       type: String,
-    
+
       sparse: true,
       trim: true,
       lowercase: true,
@@ -48,7 +48,7 @@ const userSchema = new mongoose.Schema(
     googleId: {
       type: String,
       sparse: true,
-      default: null,
+      default: undefined,
     },
 
     // ---------------------------------------
@@ -60,7 +60,7 @@ const userSchema = new mongoose.Schema(
       
       sparse: true,
       index: true,
-      default: null,
+      default: undefined,
     },
 
     profileImage: {
