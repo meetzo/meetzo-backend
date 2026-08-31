@@ -1,5 +1,9 @@
 import mongoose from "mongoose";
 
+// =====================================
+// HEIGHT SUB-SCHEMA
+// =====================================
+
 const heightSchema = new mongoose.Schema(
   {
     value: {
@@ -16,8 +20,54 @@ const heightSchema = new mongoose.Schema(
   },
   {
     _id: false,
-  }
+  },
 );
+
+// =====================================
+// PROFILE PHOTO SUB-SCHEMA
+// =====================================
+
+const photoSchema = new mongoose.Schema(
+  {
+    url: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    fileId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    visibility: {
+      type: String,
+      enum: ["PUBLIC", "PRIVATE"],
+      required: true,
+      default: "PUBLIC",
+    },
+
+    isMain: {
+      type: Boolean,
+      default: false,
+    },
+
+    order: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+  },
+  {
+    timestamps: true,
+    versionKey: false,
+  },
+);
+
+// =====================================
+// PROFILE SCHEMA
+// =====================================
 
 const profileSchema = new mongoose.Schema(
   {
@@ -30,19 +80,27 @@ const profileSchema = new mongoose.Schema(
     },
 
     // =====================================
-    // PROFILE IMAGE
+    // PROFILE PHOTOS
     // =====================================
 
+    // Main public profile photo URL
     profileImage: {
       type: String,
       trim: true,
       default: null,
     },
 
+    // Main public profile photo ImageKit ID
     profileImageId: {
       type: String,
       trim: true,
       default: null,
+    },
+
+    // All public and private profile photos
+    photos: {
+      type: [photoSchema],
+      default: [],
     },
 
     // =====================================
@@ -64,10 +122,8 @@ const profileSchema = new mongoose.Schema(
       required: true,
       validate: {
         validator: (value) =>
-          Array.isArray(value) &&
-          value.length > 0,
-        message:
-          "At least one language is required",
+          Array.isArray(value) && value.length > 0,
+        message: "At least one language is required",
       },
     },
 
@@ -316,7 +372,7 @@ const profileSchema = new mongoose.Schema(
     },
 
     // =====================================
-    // OPTIONAL DETAILS
+    // ABOUT ME
     // =====================================
 
     bio: {
@@ -325,6 +381,15 @@ const profileSchema = new mongoose.Schema(
       maxlength: 500,
       default: null,
     },
+
+    showBioOnProfile: {
+      type: Boolean,
+      default: true,
+    },
+
+    // =====================================
+    // OPTIONAL DETAILS
+    // =====================================
 
     education: {
       type: String,
@@ -494,21 +559,21 @@ const profileSchema = new mongoose.Schema(
 
     isProfileCompleted: {
       type: Boolean,
-      default: true,
+      default: false,
     },
 
     completedAt: {
       type: Date,
-      default: Date.now,
+      default: null,
     },
   },
   {
     timestamps: true,
     versionKey: false,
-  }
+  },
 );
 
 export default mongoose.model(
   "Profile",
-  profileSchema
+  profileSchema,
 );
