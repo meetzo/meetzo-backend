@@ -1,4 +1,5 @@
 import profileModel from "../../models/profileModel.js";
+import mongoose from "mongoose";
 import userModel from "../../models/userModel.js";
 import ApiError from "../../utils/api.error.js";
 import imageKit from "./imageKit.service.js";
@@ -9,6 +10,43 @@ import {
 /**
  * Calculate age from date of birth.
  */
+
+// =====================================
+// IMAGEKIT UPLOAD HELPER
+// =====================================
+
+const uploadPhotoToImageKit = async ({
+  file,
+  folder,
+}) => {
+  const result = await imageKit.upload({
+    file: file.buffer,
+    fileName: `${Date.now()}-${file.originalname}`,
+    folder,
+    useUniqueFileName: true,
+  });
+
+  return {
+    url: result.url,
+    fileId: result.fileId,
+  };
+};
+
+// =====================================
+// IMAGEKIT DELETE HELPER
+// =====================================
+
+const deletePhotoFromImageKit = async (
+  fileId,
+) => {
+  if (!fileId) {
+    return;
+  }
+
+  await imageKit.deleteFile(fileId);
+};
+
+
 const calculateAge = (dateOfBirth) => {
   const dob = new Date(dateOfBirth);
 
@@ -166,7 +204,7 @@ export const saveProfileDetailsService = async ({
   if (
     !Number.isFinite(heightValue) ||
     heightValue <= 0 ||
-    !["CM", "FT"].includes(heightUnit)
+    !["CM", "FT" , "IN"].includes(heightUnit)
   ) {
     throw new ApiError(400, "Valid height value and unit are required");
   }
@@ -973,4 +1011,574 @@ export const getProfileCompletionService = async ({
   }
 
   return calculateProfileCompletion(profile);
+};
+
+// =====================================
+// ADD PROFILE PHOTOS SERVICE
+// Public: minimum 2, maximum 6
+// Private: minimum 0, maximum 6
+// =====================================
+
+export const addProfilePhotosService = async ({
+  userId,
+  publicPhotos = [],
+  privatePhotos = [],
+}) => {
+  if (!userId) {
+    throw new ApiError(
+      401,
+      "Authentication required",
+    );
+  }
+
+  const profile = await profileModel.findOne({
+    userId,
+  });
+
+  if (!profile) {
+    throw new ApiError(
+      404,
+      "Please complete profile details first",
+    );
+  }
+
+  // =====================================
+  // EXISTING PHOTO COUNTS
+  // =====================================
+
+  const existingPublicPhotos =
+    profile.photos.filter(
+      (photo) =>
+        photo.visibility === "PUBLIC",
+    );
+
+  const existingPrivatePhotos =
+    profile.photos.filter(
+      (photo) =>
+        photo.visibility === "PRIVATE",
+    );
+
+  const existingPublicCount =
+    existingPublicPhotos.length;
+
+  const existingPrivateCount =
+    existingPrivatePhotos.length;
+
+  const newPublicCount =
+    publicPhotos.length;
+
+  const newPrivateCount =
+    privatePhotos.length;
+
+  const totalPublicCount =
+    existingPublicCount + newPublicCount;
+
+  const totalPrivateCount =
+    existingPrivateCount + newPrivateCount;
+
+  // =====================================
+  // VALIDATIONS
+  // =====================================
+
+  // First public-photo upload must contain
+  // at least 2 photos.
+  if (
+    existingPublicCount === 0 &&
+    newPublicCount > 0 &&
+    newPublicCount < 2
+  ) {
+    throw new ApiError(
+      400,
+      "Please upload at least 2 public photos",
+    );
+  }
+
+  // Private-only upload cannot be done until
+  // minimum public photos exist.
+  if (
+    existingPublicCount === 0 &&
+    newPublicCount === 0
+  ) {
+    throw new ApiError(
+      400,
+      "Please upload at least 2 public photos first",
+    );
+  }
+
+ if (totalPublicCount > 6) {
+  throw new ApiError(
+    400,
+    "Maximum 6 public photos are allowed",
+  );
+}
+
+if (totalPrivateCount > 6) {
+  throw new ApiError(
+    400,
+    "Maximum 6 private photos are allowed",
+  );
+}
+
+  const newlyUploadedFileIds = [];
+
+  try {
+    // Check whether a main photo already exists.
+    const hasMainPhoto =
+      existingPublicPhotos.some(
+        (photo) => photo.isMain,
+      );
+
+    // =====================================
+    // UPLOAD NEW PUBLIC PHOTOS
+    // =====================================
+
+    const uploadedPublicPhotos =
+      await Promise.all(
+        publicPhotos.map(
+          async (file, index) => {
+            const uploaded =
+              await uploadPhotoToImageKit({
+                file,
+                folder:
+                  "/MeetZo/Profile_Photos/Public",
+              });
+
+            newlyUploadedFileIds.push(
+              uploaded.fileId,
+            );
+
+            return {
+              url: uploaded.url,
+              fileId: uploaded.fileId,
+              visibility: "PUBLIC",
+
+              // Only make first photo main when
+              // no main photo currently exists.
+              isMain:
+                !hasMainPhoto && index === 0,
+
+              order:
+                existingPublicCount +
+                index +
+                1,
+            };
+          },
+        ),
+      );
+
+    // =====================================
+    // UPLOAD NEW PRIVATE PHOTOS
+    // =====================================
+
+    const uploadedPrivatePhotos =
+      await Promise.all(
+        privatePhotos.map(
+          async (file, index) => {
+            const uploaded =
+              await uploadPhotoToImageKit({
+                file,
+                folder:
+                  "/MeetZo/Profile_Photos/Private",
+              });
+
+            newlyUploadedFileIds.push(
+              uploaded.fileId,
+            );
+
+            return {
+              url: uploaded.url,
+              fileId: uploaded.fileId,
+              visibility: "PRIVATE",
+              isMain: false,
+
+              order:
+                existingPrivateCount +
+                index +
+                1,
+            };
+          },
+        ),
+      );
+
+    // =====================================
+    // APPEND PHOTOS
+    // Do not replace existing photos.
+    // =====================================
+
+    profile.photos.push(
+      ...uploadedPublicPhotos,
+      ...uploadedPrivatePhotos,
+    );
+
+    // Find main public photo.
+    const mainPhoto = profile.photos.find(
+      (photo) =>
+        photo.visibility === "PUBLIC" &&
+        photo.isMain,
+    );
+
+    if (mainPhoto) {
+      profile.profileImage =
+        mainPhoto.url;
+
+      profile.profileImageId =
+        mainPhoto.fileId;
+    }
+
+    await profile.save();
+
+    const finalPublicPhotos =
+      profile.photos.filter(
+        (photo) =>
+          photo.visibility === "PUBLIC",
+      );
+
+    const finalPrivatePhotos =
+      profile.photos.filter(
+        (photo) =>
+          photo.visibility === "PRIVATE",
+      );
+
+    return {
+      profileImage:
+        profile.profileImage,
+
+      profileImageId:
+        profile.profileImageId,
+
+      publicPhotos:
+        finalPublicPhotos,
+
+      privatePhotos:
+        finalPrivatePhotos,
+
+      publicPhotoCount:
+        finalPublicPhotos.length,
+
+      privatePhotoCount:
+        finalPrivatePhotos.length,
+
+      remainingPublicSlots:
+        6 - finalPublicPhotos.length,
+
+      remainingPrivateSlots:
+        6 - finalPrivatePhotos.length,
+    };
+  } catch (error) {
+    // Only newly uploaded files will be deleted
+    // if database save fails.
+    await Promise.allSettled(
+      newlyUploadedFileIds.map((fileId) =>
+        deletePhotoFromImageKit(fileId),
+      ),
+    );
+
+    throw error;
+  }
+};
+
+export const getMyProfilePhotosService = async ({
+  userId,
+}) => {
+  if (!userId) {
+    throw new ApiError(
+      401,
+      "Authentication required",
+    );
+  }
+
+  const profile = await profileModel
+    .findOne({ userId })
+    .select(
+      "userId profileImage profileImageId photos",
+    )
+    .lean();
+
+  if (!profile) {
+    throw new ApiError(
+      404,
+      "Profile not found",
+    );
+  }
+
+  const publicPhotos = (profile.photos || [])
+    .filter(
+      (photo) =>
+        photo.visibility === "PUBLIC",
+    )
+    .sort((a, b) => a.order - b.order);
+
+  const privatePhotos = (profile.photos || [])
+    .filter(
+      (photo) =>
+        photo.visibility === "PRIVATE",
+    )
+    .sort((a, b) => a.order - b.order);
+
+  return {
+    profileImage: profile.profileImage,
+    profileImageId: profile.profileImageId,
+
+    publicPhotos,
+    privatePhotos,
+
+    publicPhotoCount: publicPhotos.length,
+    privatePhotoCount: privatePhotos.length,
+
+    remainingPublicSlots:
+      Math.max(0, 6 - publicPhotos.length),
+
+    remainingPrivateSlots:
+      Math.max(0, 6 - privatePhotos.length),
+  };
+};
+
+export const deleteProfilePhotoService = async ({
+  userId,
+  photoId,
+}) => {
+  if (!userId) {
+    throw new ApiError(
+      401,
+      "Authentication required",
+    );
+  }
+
+  if (
+    !photoId ||
+    !mongoose.Types.ObjectId.isValid(photoId)
+  ) {
+    throw new ApiError(
+      400,
+      "Invalid photo ID",
+    );
+  }
+
+  const profile = await profileModel.findOne({
+    userId,
+  });
+
+  if (!profile) {
+    throw new ApiError(
+      404,
+      "Profile not found",
+    );
+  }
+
+  const photo = profile.photos.id(photoId);
+
+  if (!photo) {
+    throw new ApiError(
+      404,
+      "Photo not found",
+    );
+  }
+
+  const publicPhotos = profile.photos.filter(
+    (item) =>
+      item.visibility === "PUBLIC",
+  );
+
+  // At least 2 public photos must remain.
+  if (
+    photo.visibility === "PUBLIC" &&
+    publicPhotos.length <= 2
+  ) {
+    throw new ApiError(
+      400,
+      "At least 2 public photos are required",
+    );
+  }
+
+  // Store values before removing subdocument.
+  const deletedFileId = photo.fileId;
+  const deletedVisibility = photo.visibility;
+  const wasMainPhoto = photo.isMain;
+
+  // Remove photo from MongoDB array.
+  profile.photos.pull(photo._id);
+
+  // Remaining public photos.
+  const remainingPublicPhotos =
+    profile.photos
+      .filter(
+        (item) =>
+          item.visibility === "PUBLIC",
+      )
+      .sort((a, b) => a.order - b.order);
+
+  // Remaining private photos.
+  const remainingPrivatePhotos =
+    profile.photos
+      .filter(
+        (item) =>
+          item.visibility === "PRIVATE",
+      )
+      .sort((a, b) => a.order - b.order);
+
+  // Reorder public photos.
+  remainingPublicPhotos.forEach(
+    (item, index) => {
+      item.order = index + 1;
+    },
+  );
+
+  // Reorder private photos.
+  remainingPrivatePhotos.forEach(
+    (item, index) => {
+      item.order = index + 1;
+    },
+  );
+
+  // If main photo was deleted, assign next public
+  // photo as the main profile photo.
+  if (
+    deletedVisibility === "PUBLIC" &&
+    wasMainPhoto
+  ) {
+    remainingPublicPhotos.forEach((item) => {
+      item.isMain = false;
+    });
+
+    const newMainPhoto =
+      remainingPublicPhotos[0];
+
+    if (newMainPhoto) {
+      newMainPhoto.isMain = true;
+
+      profile.profileImage =
+        newMainPhoto.url;
+
+      profile.profileImageId =
+        newMainPhoto.fileId;
+    } else {
+      profile.profileImage = null;
+      profile.profileImageId = null;
+    }
+  }
+
+  // First update MongoDB.
+  await profile.save();
+
+  // Then remove actual image from ImageKit.
+  // MongoDB deletion should remain successful even if
+  // ImageKit temporarily fails.
+  try {
+    await deletePhotoFromImageKit(
+      deletedFileId,
+    );
+  } catch (error) {
+    console.error(
+      "ImageKit photo deletion failed:",
+      {
+        fileId: deletedFileId,
+        message: error.message,
+      },
+    );
+  }
+
+  return {
+    deletedPhotoId: photoId,
+
+    profileImage:
+      profile.profileImage,
+
+    profileImageId:
+      profile.profileImageId,
+
+    publicPhotos:
+      remainingPublicPhotos,
+
+    privatePhotos:
+      remainingPrivatePhotos,
+
+    publicPhotoCount:
+      remainingPublicPhotos.length,
+
+    privatePhotoCount:
+      remainingPrivatePhotos.length,
+
+    remainingPublicSlots:
+      6 - remainingPublicPhotos.length,
+
+    remainingPrivateSlots:
+      6 - remainingPrivatePhotos.length,
+  };
+};
+
+// =====================================
+// UPDATE ABOUT ME SERVICE
+// =====================================
+
+export const updateAboutMeService = async ({
+  userId,
+  bio,
+  showBioOnProfile,
+}) => {
+  if (!userId) {
+    throw new ApiError(
+      401,
+      "Authentication required",
+    );
+  }
+
+  const cleanBio = String(
+    bio ?? "",
+  ).trim();
+
+  if (!cleanBio) {
+    throw new ApiError(
+      400,
+      "About me is required",
+    );
+  }
+
+  if (cleanBio.length > 500) {
+    throw new ApiError(
+      400,
+      "About me cannot exceed 500 characters",
+    );
+  }
+
+  if (
+    showBioOnProfile !== undefined &&
+    typeof showBioOnProfile !== "boolean"
+  ) {
+    throw new ApiError(
+      400,
+      "showBioOnProfile must be true or false",
+    );
+  }
+
+  const profile =
+    await profileModel.findOneAndUpdate(
+      {
+        userId,
+      },
+      {
+        $set: {
+          bio: cleanBio,
+
+          showBioOnProfile:
+            showBioOnProfile ?? true,
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
+
+  if (!profile) {
+    throw new ApiError(
+      404,
+      "Profile not found",
+    );
+  }
+
+  return {
+    bio: profile.bio,
+    showBioOnProfile:
+      profile.showBioOnProfile,
+  };
 };

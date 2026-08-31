@@ -1,8 +1,11 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import authRoutes from './module/auth/auth.routes.js';
+import profileRoutes from './module/profile/profile.routes.js';
 import errormiddleware from './middleware/error.middleware.js'
-import profileRoutes from "./module/profile/profile.routes.js";
+import exclusiveApplicationRoutes from "./module/meetzo_exclusive/exclusiveApplication.routes.js";
+import "dotenv/config";
+
 const app = express();
 
 
@@ -12,10 +15,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Test route
+app.get("/test", (req, res) => {
+  console.log("✅ TEST ROUTE HIT");
+  return res.status(200).json({
+    success: true,
+    message: "App is working",
+  });
+});
+
 app.use('/api/auth', authRoutes);
 app.use(
   "/api/profile",
   profileRoutes
+);
+
+app.use(
+  "/api/exclusive-applications",
+  exclusiveApplicationRoutes,
 );
 
 import multer from "multer";

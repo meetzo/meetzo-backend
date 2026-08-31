@@ -1,6 +1,4 @@
 import asyncHandler from "../../utils/asyncHandler.js";
-import imageKit from "./imageKit.service.js";
-import profileModel from "../../models/profileModel.js";
 import ApiError from "../../utils/api.error.js";
 
 import {
@@ -10,6 +8,10 @@ import {
   addProfilePictureService,
   getProfilesByGenderService,
   getProfileCompletionService,
+  addProfilePhotosService,
+  updateAboutMeService,
+  getMyProfilePhotosService,
+  deleteProfilePhotoService
 } from "./profile.service.js";
 
 export const saveProfileDetailsController = asyncHandler(async (req, res) => {
@@ -109,3 +111,156 @@ export const getProfileCompletionController = asyncHandler(
     });
   }
 );
+
+// =====================================
+// ADD PROFILE PHOTOS
+// Public: minimum 2, maximum 6
+// Private: minimum 0, maximum 6
+// =====================================
+export const addProfilePhotos = asyncHandler(
+  async (req, res) => {
+    const userId =
+      req.user?._id || req.user?.id;
+
+    if (!userId) {
+      throw new ApiError(
+        401,
+        "Authentication required",
+      );
+    }
+
+    const publicPhotos =
+      req.files?.publicPhotos || [];
+
+    const privatePhotos =
+      req.files?.privatePhotos || [];
+
+    // At least one photo should be provided.
+    if (
+      publicPhotos.length === 0 &&
+      privatePhotos.length === 0
+    ) {
+      throw new ApiError(
+        400,
+        "Please upload at least one photo",
+      );
+    }
+
+    const result =
+      await addProfilePhotosService({
+        userId,
+        publicPhotos,
+        privatePhotos,
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Profile photos added successfully",
+      data: result,
+    });
+  },
+);
+
+export const getMyProfilePhotos = asyncHandler(async (req, res) => {
+    const userId =
+      req.user?._id ||
+      req.user?.id ||
+      req.userId;
+
+    const result =
+      await getMyProfilePhotosService({
+        userId,
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Profile photos fetched successfully",
+      data: result,
+    });
+  });
+
+
+// =====================================
+// UPDATE ABOUT ME
+// =====================================
+
+export const updateAboutMe = asyncHandler(
+  async (req, res) => {
+    const userId = req.user?.id || req.user?._id;
+
+    if (!userId) {
+      throw new ApiError(
+        401,
+        "Authentication required",
+      );
+    }
+
+    const {
+      bio,
+      showBioOnProfile,
+    } = req.body || {};
+
+    const cleanBio = String(bio ?? "").trim();
+
+    if (!cleanBio) {
+      throw new ApiError(
+        400,
+        "About me is required",
+      );
+    }
+
+    if (cleanBio.length > 500) {
+      throw new ApiError(
+        400,
+        "About me cannot exceed 500 characters",
+      );
+    }
+
+    if (
+      showBioOnProfile !== undefined &&
+      typeof showBioOnProfile !== "boolean"
+    ) {
+      throw new ApiError(
+        400,
+        "showBioOnProfile must be true or false",
+      );
+    }
+
+    const result = await updateAboutMeService({
+      userId,
+      bio: cleanBio,
+      showBioOnProfile,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "About me updated successfully",
+      data: result,
+    });
+  },
+);
+
+export const deleteProfilePhoto =
+  asyncHandler(async (req, res) => {
+    const userId =
+      req.user?._id ||
+      req.user?.id ||
+      req.userId;
+
+    const { photoId } = req.params;
+
+    const result =
+      await deleteProfilePhotoService({
+        userId,
+        photoId,
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Profile photo deleted successfully",
+      data: result,
+    });
+  });
