@@ -3,7 +3,7 @@ import userModel from "../../models/userModel.js";
 import signupAttemptModel from "../../models/signupAttemptModel.js";
 import mongoose from "mongoose";
 import { verifyGoogleIdToken } from "../../utils/googleClient.js";
-import {verifyAppleIdToken} from "../../utils/appleClient.js"
+import { verifyAppleIdToken } from "../../utils/appleClient.js";
 
 import {
   generateToken,
@@ -443,16 +443,10 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
   let payload;
 
   try {
-    payload = jwt.verify(
-      otpToken,
-      process.env.OTP_TOKEN_SECRET
-    );
+    payload = jwt.verify(otpToken, process.env.OTP_TOKEN_SECRET);
   } catch (error) {
     if (error?.name === "TokenExpiredError") {
-      throw new ApiError(
-        401,
-        "OTP session has expired. Please signup again."
-      );
+      throw new ApiError(401, "OTP session has expired. Please signup again.");
     }
 
     throw new ApiError(401, "Invalid OTP session");
@@ -463,10 +457,7 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
   // ==========================================
 
   if (payload?.purpose !== "SIGNUP_OTP") {
-    throw new ApiError(
-      401,
-      "Invalid signup OTP token"
-    );
+    throw new ApiError(401, "Invalid signup OTP token");
   }
 
   // ==========================================
@@ -474,10 +465,7 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
   // ==========================================
 
   if (!payload?.signupAttemptId) {
-    throw new ApiError(
-      401,
-      "Invalid signup session"
-    );
+    throw new ApiError(401, "Invalid signup session");
   }
 
   // ==========================================
@@ -491,7 +479,7 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
   if (!signupAttempt) {
     throw new ApiError(
       404,
-      "Signup session not found or expired. Please signup again."
+      "Signup session not found or expired. Please signup again.",
     );
   }
 
@@ -499,39 +487,24 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
   // 6. NORMALIZE SIGNUP DATA
   // ==========================================
 
-  const normalizedEmail = String(
-    signupAttempt.email ?? ""
-  )
+  const normalizedEmail = String(signupAttempt.email ?? "")
     .trim()
     .toLowerCase();
 
-  const normalizedPhone = String(
-    signupAttempt.phone ?? ""
-  ).trim();
+  const normalizedPhone = String(signupAttempt.phone ?? "").trim();
 
-  const normalizedName = String(
-    signupAttempt.name ?? ""
-  ).trim();
+  const normalizedName = String(signupAttempt.name ?? "").trim();
 
   if (!normalizedEmail) {
-    throw new ApiError(
-      400,
-      "Signup email is missing"
-    );
+    throw new ApiError(400, "Signup email is missing");
   }
 
   if (!normalizedPhone) {
-    throw new ApiError(
-      400,
-      "Signup phone number is missing"
-    );
+    throw new ApiError(400, "Signup phone number is missing");
   }
 
   if (!normalizedName) {
-    throw new ApiError(
-      400,
-      "Signup name is missing"
-    );
+    throw new ApiError(400, "Signup name is missing");
   }
 
   // ==========================================
@@ -546,27 +519,21 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
       _id: signupAttempt._id,
     });
 
-    throw new ApiError(
-      400,
-      "OTP has expired. Please signup again."
-    );
+    throw new ApiError(400, "OTP has expired. Please signup again.");
   }
 
   // ==========================================
   // 8. CHECK MAX OTP ATTEMPTS
   // ==========================================
 
-  if (
-    Number(signupAttempt.attempts ?? 0) >=
-    MAX_OTP_ATTEMPTS
-  ) {
+  if (Number(signupAttempt.attempts ?? 0) >= MAX_OTP_ATTEMPTS) {
     await signupAttemptModel.deleteOne({
       _id: signupAttempt._id,
     });
 
     throw new ApiError(
       429,
-      "Too many incorrect OTP attempts. Please signup again."
+      "Too many incorrect OTP attempts. Please signup again.",
     );
   }
 
@@ -574,17 +541,12 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
   // 9. VERIFY OTP
   // ==========================================
 
-  const isOtpValid = await bcrypt.compare(
-    cleanOtp,
-    signupAttempt.otpHash
-  );
+  const isOtpValid = await bcrypt.compare(cleanOtp, signupAttempt.otpHash);
 
   if (!isOtpValid) {
-    signupAttempt.attempts =
-      Number(signupAttempt.attempts ?? 0) + 1;
+    signupAttempt.attempts = Number(signupAttempt.attempts ?? 0) + 1;
 
-    const attemptsLeft =
-      MAX_OTP_ATTEMPTS - signupAttempt.attempts;
+    const attemptsLeft = MAX_OTP_ATTEMPTS - signupAttempt.attempts;
 
     if (attemptsLeft <= 0) {
       await signupAttemptModel.deleteOne({
@@ -593,16 +555,13 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
 
       throw new ApiError(
         429,
-        "Too many incorrect OTP attempts. Please signup again."
+        "Too many incorrect OTP attempts. Please signup again.",
       );
     }
 
     await signupAttempt.save();
 
-    throw new ApiError(
-      400,
-      `Invalid OTP. ${attemptsLeft} attempts remaining.`
-    );
+    throw new ApiError(400, `Invalid OTP. ${attemptsLeft} attempts remaining.`);
   }
 
   // ==========================================
@@ -625,30 +584,15 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
       _id: signupAttempt._id,
     });
 
-    if (
-      existingUser.email &&
-      existingUser.email === normalizedEmail
-    ) {
-      throw new ApiError(
-        409,
-        "User already registered with this email"
-      );
+    if (existingUser.email && existingUser.email === normalizedEmail) {
+      throw new ApiError(409, "User already registered with this email");
     }
 
-    if (
-      existingUser.phone &&
-      existingUser.phone === normalizedPhone
-    ) {
-      throw new ApiError(
-        409,
-        "User already registered with this phone number"
-      );
+    if (existingUser.phone && existingUser.phone === normalizedPhone) {
+      throw new ApiError(409, "User already registered with this phone number");
     }
 
-    throw new ApiError(
-      409,
-      "User already registered"
-    );
+    throw new ApiError(409, "User already registered");
   }
 
   // ==========================================
@@ -674,33 +618,17 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
     // DEBUG ACTUAL DATABASE ERROR
     // ========================================
 
-    console.error(
-      "========== USER CREATE ERROR =========="
-    );
+    console.error("========== USER CREATE ERROR ==========");
 
-    console.error(
-      "Error code:",
-      error?.code
-    );
+    console.error("Error code:", error?.code);
 
-    console.error(
-      "Key pattern:",
-      error?.keyPattern
-    );
+    console.error("Key pattern:", error?.keyPattern);
 
-    console.error(
-      "Key value:",
-      error?.keyValue
-    );
+    console.error("Key value:", error?.keyValue);
 
-    console.error(
-      "Mongo message:",
-      error?.message
-    );
+    console.error("Mongo message:", error?.message);
 
-    console.error(
-      "======================================="
-    );
+    console.error("=======================================");
 
     // ========================================
     // HANDLE DUPLICATE KEY
@@ -711,85 +639,57 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
         Object.keys(error?.keyPattern ?? {})[0] ||
         Object.keys(error?.keyValue ?? {})[0];
 
-      const duplicateValue =
-        duplicateField
-          ? error?.keyValue?.[duplicateField]
-          : undefined;
+      const duplicateValue = duplicateField
+        ? error?.keyValue?.[duplicateField]
+        : undefined;
 
-      console.error(
-        "Duplicate field:",
-        duplicateField
-      );
+      console.error("Duplicate field:", duplicateField);
 
-      console.error(
-        "Duplicate value:",
-        duplicateValue
-      );
+      console.error("Duplicate value:", duplicateValue);
 
       // EMAIL
       if (duplicateField === "email") {
-        throw new ApiError(
-          409,
-          "User already registered with this email"
-        );
+        throw new ApiError(409, "User already registered with this email");
       }
 
       // PHONE
-      if (
-        duplicateField === "phone" ||
-        duplicateField === "fullPhone"
-      ) {
+      if (duplicateField === "phone" || duplicateField === "fullPhone") {
         // Important for debugging old/null indexes
-        if (
-          duplicateValue === null ||
-          duplicateValue === undefined
-        ) {
+        if (duplicateValue === null || duplicateValue === undefined) {
           throw new ApiError(
             409,
-            `Database unique index issue on ${duplicateField}. Duplicate null value detected.`
+            `Database unique index issue on ${duplicateField}. Duplicate null value detected.`,
           );
         }
 
         throw new ApiError(
           409,
-          "User already registered with this phone number"
+          "User already registered with this phone number",
         );
       }
 
       // GOOGLE ID
       if (duplicateField === "googleId") {
-        if (
-          duplicateValue === null ||
-          duplicateValue === undefined
-        ) {
+        if (duplicateValue === null || duplicateValue === undefined) {
           throw new ApiError(
             409,
-            "Database unique index issue on googleId. Duplicate null value detected."
+            "Database unique index issue on googleId. Duplicate null value detected.",
           );
         }
 
-        throw new ApiError(
-          409,
-          "This Google account is already registered"
-        );
+        throw new ApiError(409, "This Google account is already registered");
       }
 
       // APPLE ID
       if (duplicateField === "appleId") {
-        if (
-          duplicateValue === null ||
-          duplicateValue === undefined
-        ) {
+        if (duplicateValue === null || duplicateValue === undefined) {
           throw new ApiError(
             409,
-            "Database unique index issue on appleId. Duplicate null value detected."
+            "Database unique index issue on appleId. Duplicate null value detected.",
           );
         }
 
-        throw new ApiError(
-          409,
-          "This Apple account is already registered"
-        );
+        throw new ApiError(409, "This Apple account is already registered");
       }
 
       // ANY OTHER UNIQUE FIELD
@@ -797,7 +697,7 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
         409,
         duplicateField
           ? `Duplicate value found for unique field: ${duplicateField}`
-          : "Duplicate user data found"
+          : "Duplicate user data found",
       );
     }
 
@@ -817,9 +717,7 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
   // 13. GENERATE LOGIN TOKEN
   // ==========================================
 
-  const token = generateToken(
-    user._id.toString()
-  );
+  const token = generateToken(user._id.toString());
 
   // ==========================================
   // 14. SAFE USER RESPONSE
@@ -840,14 +738,11 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
 
     isBlocked: user.isBlocked,
 
-    profileImage:
-      user.profileImage ?? null,
+    profileImage: user.profileImage ?? null,
 
-    kycStatus:
-      user.kycStatus ?? null,
+    kycStatus: user.kycStatus ?? null,
 
-    isKycVerified:
-      user.isKycVerified ?? false,
+    isKycVerified: user.isKycVerified ?? false,
 
     createdAt: user.createdAt,
   };
@@ -859,15 +754,13 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
   return {
     success: true,
 
-    message:
-      "Account verified and registered successfully",
+    message: "Account verified and registered successfully",
 
     token,
 
     user: safeUser,
   };
 };
-
 
 // Login service
 export const loginService = async ({ email, password }) => {
@@ -1656,19 +1549,14 @@ export const googleAndroidAuthService = async ({ idToken }) => {
   };
 };
 
-
-
-const getAppleFullName = (
-  fullName
-) => {
+const getAppleFullName = (fullName) => {
   if (!fullName) {
     return null;
   }
 
   // Flutter may send a normal string
   if (typeof fullName === "string") {
-    const name =
-      fullName.trim();
+    const name = fullName.trim();
 
     return name || null;
   }
@@ -1679,112 +1567,112 @@ const getAppleFullName = (
   //   familyName: "Singh"
   // }
 
-  if (
-    typeof fullName === "object"
-  ) {
-    const givenName =
-      String(
-        fullName.givenName ?? ""
-      ).trim();
+  if (typeof fullName === "object") {
+    const givenName = String(fullName.givenName ?? "").trim();
 
-    const familyName =
-      String(
-        fullName.familyName ?? ""
-      ).trim();
+    const familyName = String(fullName.familyName ?? "").trim();
 
-    const name =
-      `${givenName} ${familyName}`
-        .trim();
+    const name = `${givenName} ${familyName}`.trim();
 
     return name || null;
   }
 
   return null;
 };
-export const appleLoginService = async ({
-  identityToken,
-  email,
-  fullName,
-}) => {
-  // ---------------------------------------
-  // VALIDATE TOKEN
-  // ---------------------------------------
+export const appleLoginService = async ({ identityToken, email, fullName }) => {
+  // =======================================
+  // VALIDATE IDENTITY TOKEN
+  // =======================================
 
-  const cleanIdentityToken = String(
-    identityToken ?? ""
-  ).trim();
+  const cleanIdentityToken = String(identityToken ?? "").trim();
 
   if (!cleanIdentityToken) {
-    throw new ApiError(
-      400,
-      "Apple identity token is required"
-    );
+    throw new ApiError(400, "Apple identity token is required");
   }
 
-  // ---------------------------------------
-  // VERIFY APPLE TOKEN
-  // ---------------------------------------
+  // =======================================
+  // VERIFY APPLE IDENTITY TOKEN
+  // =======================================
 
-  const appleData =
-    await verifyAppleIdToken(
-      cleanIdentityToken
-    );
+  let appleData;
 
-  if (!appleData?.appleId) {
-    throw new ApiError(
-      401,
-      "Invalid Apple identity token"
-    );
+  try {
+    appleData = await verifyAppleIdToken(cleanIdentityToken);
+  } catch (error) {
+    console.error("APPLE ID TOKEN VERIFICATION ERROR:", error);
+
+    throw new ApiError(401, "Invalid Apple identity token");
   }
 
-  // ---------------------------------------
-  // NORMALIZE OPTIONAL FRONTEND EMAIL
-  // ---------------------------------------
+  /*
+    Apple standard JWT claims:
 
-  const normalizedRequestEmail =
-    typeof email === "string"
-      ? email.trim().toLowerCase()
-      : null;
+    sub            = unique Apple user ID
+    email          = Apple verified email
+    email_verified = true / "true"
+    aud            = bundle ID / client ID
+    iss            = https://appleid.apple.com
+  */
 
-  // Apple verified email takes priority.
+  const appleId =
+    typeof appleData?.sub === "string" ? appleData.sub.trim() : null;
+
+  if (!appleId) {
+    throw new ApiError(401, "Invalid Apple identity token");
+  }
+
+  // =======================================
+  // NORMALIZE EMAIL VERIFIED
+  // =======================================
+
+  const emailVerified =
+    appleData.email_verified === true || appleData.email_verified === "true";
+
+  // =======================================
+  // VERIFIED APPLE EMAIL
+  // =======================================
+
   const appleEmail =
     typeof appleData.email === "string"
-      ? appleData.email
-          .trim()
-          .toLowerCase()
+      ? appleData.email.trim().toLowerCase()
       : null;
 
-  const resolvedEmail =
-    appleEmail ||
-    normalizedRequestEmail;
+  // =======================================
+  // FRONTEND EMAIL
+  // =======================================
+  // Do NOT trust this for account linking.
+  // Apple token email is the trusted source.
+  // =======================================
 
-  // ---------------------------------------
-  // NORMALIZE APPLE NAME
-  // ---------------------------------------
+  const normalizedRequestEmail =
+    typeof email === "string" ? email.trim().toLowerCase() : null;
 
-  const normalizedName =
-    getAppleFullName(fullName);
+  // Can be used as fallback for display/new
+  // account only if your product requires it,
+  // but it is NOT Apple-verified.
+  const resolvedEmail = appleEmail || normalizedRequestEmail;
 
-  // ---------------------------------------
-  // FIRST: FIND BY APPLE ID
-  // ---------------------------------------
+  // =======================================
+  // NORMALIZE NAME
+  // =======================================
+
+  const normalizedName = getAppleFullName(fullName);
+
+  // =======================================
+  // FIND USER BY APPLE ID
+  // =======================================
 
   let user = await userModel.findOne({
-    appleId: appleData.appleId,
+    appleId,
   });
 
-  // ---------------------------------------
-  // SECOND: LINK EXISTING ACCOUNT BY EMAIL
-  // ---------------------------------------
-  // Only trust email from verified Apple token
-  // when linking accounts.
-  // ---------------------------------------
+  // =======================================
+  // LINK EXISTING ACCOUNT BY VERIFIED EMAIL
+  // =======================================
+  // Never link based only on frontend email.
+  // =======================================
 
-  if (
-    !user &&
-    appleEmail &&
-    appleData.emailVerified
-  ) {
+  if (!user && appleEmail && emailVerified) {
     user = await userModel.findOne({
       email: appleEmail,
     });
@@ -1795,80 +1683,56 @@ export const appleLoginService = async ({
   // =======================================
 
   if (user) {
-    // -------------------------------------
-    // BLOCK CHECK
-    // -------------------------------------
-
     if (user.isBlocked) {
-      throw new ApiError(
-        403,
-        "Your account has been blocked"
-      );
+      throw new ApiError(403, "Your account has been blocked");
     }
 
     let shouldSave = false;
 
-    // -------------------------------------
+    // ---------------------------------------
     // LINK APPLE ID
-    // -------------------------------------
+    // ---------------------------------------
 
     if (!user.appleId) {
-      user.appleId =
-        appleData.appleId;
-
+      user.appleId = appleId;
       shouldSave = true;
     }
 
-    // -------------------------------------
-    // SAVE NAME IF USER DOESN'T HAVE ONE
-    // -------------------------------------
+    // ---------------------------------------
+    // SAVE NAME
+    // Apple normally returns fullName only
+    // on the first authorization.
+    // ---------------------------------------
 
-    if (
-      normalizedName &&
-      (!user.name ||
-        user.name.trim() === "")
-    ) {
+    if (normalizedName && (!user.name || user.name.trim() === "")) {
       user.name = normalizedName;
-
       shouldSave = true;
     }
 
-    // -------------------------------------
+    // ---------------------------------------
     // SAVE VERIFIED APPLE EMAIL
-    // -------------------------------------
+    // ---------------------------------------
 
-    if (
-      !user.email &&
-      appleEmail &&
-      appleData.emailVerified
-    ) {
+    if (!user.email && appleEmail && emailVerified) {
       user.email = appleEmail;
-
       shouldSave = true;
     }
 
-    // -------------------------------------
+    // ---------------------------------------
     // AUTH PROVIDER
-    // -------------------------------------
+    // ---------------------------------------
 
-    if (
-      user.authProvider !== "apple"
-    ) {
+    if (user.authProvider !== "apple") {
       user.authProvider = "apple";
-
       shouldSave = true;
     }
 
-    // -------------------------------------
-    // VERIFY USER
-    // -------------------------------------
+    // ---------------------------------------
+    // USER VERIFICATION
+    // ---------------------------------------
 
-    if (
-      !user.isVerified &&
-      appleData.emailVerified
-    ) {
+    if (!user.isVerified && emailVerified) {
       user.isVerified = true;
-
       shouldSave = true;
     }
 
@@ -1880,72 +1744,67 @@ export const appleLoginService = async ({
   // =======================================
   // NEW USER
   // =======================================
-
   else {
+    /*
+      For security:
+      Prefer email coming from Apple token.
+
+      Frontend-provided email should not make
+      the account verified.
+    */
+
     user = await userModel.create({
-      name:
-        normalizedName ||
-        appleEmail?.split("@")[0] ||
-        "Apple User",
+      name: normalizedName || appleEmail?.split("@")[0] || "Apple User",
 
-      email:
-        appleEmail || undefined,
+      email: appleEmail || undefined,
 
-      appleId:
-        appleData.appleId,
+      appleId,
 
-      authProvider:
-        "apple",
+      authProvider: "apple",
 
-      isVerified:
-        Boolean(
-          appleData.emailVerified
-        ),
+      isVerified: Boolean(appleEmail && emailVerified),
     });
   }
 
-  // ---------------------------------------
-  // GENERATE YOUR APP JWT
-  // ---------------------------------------
+  // =======================================
+  // GENERATE YOUR APPLICATION JWT
+  // =======================================
+  //
+  // Your generateToken function:
+  //
+  // generateToken(userId)
+  //
+  // therefore pass ONLY user ID.
+  // =======================================
 
-  const token = generateToken({
-    userId: user._id,
-  });
+  const token = generateToken(user._id.toString());
 
-  // ---------------------------------------
+  // =======================================
   // RESPONSE
-  // ---------------------------------------
+  // =======================================
 
   return {
-    message:
-      "Apple authentication successful",
+    message: "Apple authentication successful",
 
     token,
 
     user: {
       id: user._id,
 
-      name:
-        user.name,
+      name: user.name,
 
-      email:
-        user.email || null,
+      email: user.email || null,
 
-      phone:
-        user.phone || null,
+      phone: user.phone || null,
 
-      profileImage:
-        user.profileImage || null,
+      profileImage: user.profileImage || null,
 
-      authProvider:
-        user.authProvider,
+      authProvider: user.authProvider,
 
-      isVerified:
-        user.isVerified,
+      isVerified: user.isVerified,
     },
   };
 };
-
 // ======================================================
 // DUMMY MOBILE OTP
 // ======================================================

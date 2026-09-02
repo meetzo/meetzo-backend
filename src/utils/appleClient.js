@@ -18,17 +18,35 @@ export const verifyAppleIdToken = async (
     );
   }
 
-  const { payload } = await jwtVerify(
-    identityToken,
-    appleJWKS,
-    {
-      issuer: "https://appleid.apple.com",
+  if (!process.env.APPLE_AUDIENCE) {
+    throw new Error(
+      "APPLE_AUDIENCE is not configured"
+    );
+  }
 
-      // Your iOS Bundle ID
-      audience:
-        process.env.APPLE_CLIENT_ID,
-    }
-  );
+  try {
+    const { payload } = await jwtVerify(
+      identityToken,
+      appleJWKS,
+      {
+        issuer:
+          "https://appleid.apple.com",
 
-  return payload;
+        // Your iOS Bundle ID / Apple client ID
+        audience:
+          process.env.APPLE_AUDIENCE,
+      }
+    );
+
+    return payload;
+  } catch (error) {
+    console.error(
+      "APPLE TOKEN VERIFY ERROR:",
+      error
+    );
+
+    throw new Error(
+      "Invalid Apple identity token"
+    );
+  }
 };
