@@ -88,11 +88,7 @@ router.post(
   addProfilePhotos,
 );
 
-router.get(
-  "/my-photos",
-  isAuthenticated,
-  getMyProfilePhotos,
-);
+router.get("/my-photos", isAuthenticated, getMyProfilePhotos);
 
 router.delete(
   "/delete-my-photos/:photoId",
@@ -104,6 +100,6 @@ router.delete(
 // UPDATE ABOUT ME
 // =====================================
 
-router.post("/about-me", isAuthenticated , updateAboutMe);
+router.post("/about-me", isAuthenticated, updateAboutMe);
 
 export default router;
