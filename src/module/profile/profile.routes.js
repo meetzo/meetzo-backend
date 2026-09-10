@@ -42,9 +42,9 @@ router.patch("/update-profile", isAuthenticated, updateProfileController);
 // =====================================
 
 router.patch(
-  "/add_profile_picture",
+  "/add_profile_pictures",
   isAuthenticated,
-  uploadProfilePicture.single("profileImage"),
+  uploadProfilePicture.array("profileImage", 6),
   addProfilePicture,
 );
 

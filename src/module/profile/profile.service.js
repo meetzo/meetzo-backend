@@ -223,8 +223,7 @@ export const saveProfileDetailsService = async ({
   }
 
   if (
-    normalizedSelfDescription.length < 1 ||
-    normalizedSelfDescription.length > 3
+    normalizedSelfDescription.length < 1 
   ) {
     throw new ApiError(400, "Select between 1 and 3 personality traits");
   }

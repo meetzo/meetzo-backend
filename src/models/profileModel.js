@@ -294,8 +294,7 @@ const profileSchema = new mongoose.Schema(
       validate: {
         validator: (value) =>
           Array.isArray(value) &&
-          value.length >= 1 &&
-          value.length <= 3,
+          value.length >= 1,
         message:
           "Select between 1 and 3 personality traits",
       },
