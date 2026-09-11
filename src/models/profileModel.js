@@ -296,7 +296,7 @@ const profileSchema = new mongoose.Schema(
           Array.isArray(value) &&
           value.length >= 1,
         message:
-          "Select between 1 and 3 personality traits",
+          "Select at least one value",
       },
     },
 
@@ -307,9 +307,9 @@ const profileSchema = new mongoose.Schema(
         validator: (value) =>
           Array.isArray(value) &&
           value.length >= 1 &&
-          value.length <= 5,
+          value.length <= 6,
         message:
-          "Select between 1 and 5 interests",
+          "Select between 1 and 6 interests",
       },
     },
 
@@ -350,10 +350,9 @@ const profileSchema = new mongoose.Schema(
       validate: {
         validator: (value) =>
           Array.isArray(value) &&
-          value.length >= 1 &&
-          value.length <= 3,
+          value.length >= 1 ,
         message:
-          "Select between 1 and 3 weekend preferences",
+          "Select more than 1 value",
       },
     },
 
@@ -363,10 +362,9 @@ const profileSchema = new mongoose.Schema(
       validate: {
         validator: (value) =>
           Array.isArray(value) &&
-          value.length >= 1 &&
-          value.length <= 3,
+          value.length >= 1,
         message:
-          "Select between 1 and 3 values",
+          "Select between 1 and 6 values",
       },
     },
 

@@ -225,19 +225,19 @@ export const saveProfileDetailsService = async ({
   if (
     normalizedSelfDescription.length < 1 
   ) {
-    throw new ApiError(400, "Select between 1 and 3 personality traits");
+    throw new ApiError(400, "Select more than 1 personality traits");
   }
 
-  if (normalizedInterests.length < 1 || normalizedInterests.length > 5) {
-    throw new ApiError(400, "Select between 1 and 5 interests");
+  if (normalizedInterests.length < 1 || normalizedInterests.length > 6) {
+    throw new ApiError(400, "Select between 1 and 6 interests");
   }
 
-  if (normalizedIdealWeekend.length < 1 || normalizedIdealWeekend.length > 3) {
-    throw new ApiError(400, "Select between 1 and 3 weekend preferences");
+  if (normalizedIdealWeekend.length < 1 || normalizedIdealWeekend.length > 6) {
+    throw new ApiError(400, "Select between 1 and 6 weekend preferences");
   }
 
-  if (normalizedValues.length < 1 || normalizedValues.length > 3) {
-    throw new ApiError(400, "Select between 1 and 3 values");
+  if (normalizedValues.length < 1 || normalizedValues.length > 6) {
+    throw new ApiError(400, "Select between 1 and 6 values");
   }
 
   // Normalize optional/manual fields
