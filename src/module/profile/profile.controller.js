@@ -135,14 +135,51 @@ export const addProfilePhotos = asyncHandler(
     const privatePhotos =
       req.files?.privatePhotos || [];
 
-    // At least one photo should be provided.
+    const hasPublicPhotos =
+      publicPhotos.length > 0;
+
+    const hasPrivatePhotos =
+      privatePhotos.length > 0;
+
+    // =====================================
+    // AT LEAST ONE PHOTO TYPE REQUIRED
+    // =====================================
+
     if (
-      publicPhotos.length === 0 &&
-      privatePhotos.length === 0
+      !hasPublicPhotos &&
+      !hasPrivatePhotos
     ) {
       throw new ApiError(
         400,
-        "Please upload at least one photo",
+        "Please upload public photos or private photos",
+      );
+    }
+
+    // =====================================
+    // PUBLIC PHOTOS: MINIMUM 2
+    // =====================================
+
+    if (
+      hasPublicPhotos &&
+      publicPhotos.length < 2
+    ) {
+      throw new ApiError(
+        400,
+        "Please upload at least 2 public photos",
+      );
+    }
+
+    // =====================================
+    // PRIVATE PHOTOS: MINIMUM 1
+    // =====================================
+
+    if (
+      hasPrivatePhotos &&
+      privatePhotos.length < 1
+    ) {
+      throw new ApiError(
+        400,
+        "Please upload at least 1 private photo",
       );
     }
 
@@ -161,7 +198,6 @@ export const addProfilePhotos = asyncHandler(
     });
   },
 );
-
 export const getMyProfilePhotos = asyncHandler(async (req, res) => {
     const userId =
       req.user?._id ||
