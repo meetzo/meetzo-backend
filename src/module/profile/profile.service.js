@@ -1347,12 +1347,136 @@ export const getMyProfilePhotosService = async ({ userId }) => {
   };
 };
 
-export const deleteProfilePhotoService = async ({ userId, photoId }) => {
+// export const deleteProfilePhotoService = async ({ userId, fieldId }) => {
+//   if (!userId) {
+//     throw new ApiError(401, "Authentication required");
+//   }
+
+//   if (!fieldId || !mongoose.Types.ObjectId.isValid(fieldId)) {
+//     throw new ApiError(400, "Invalid photo ID");
+//   }
+
+//   const profile = await profileModel.findOne({
+//     userId,
+//   });
+
+//   if (!profile) {
+//     throw new ApiError(404, "Profile not found");
+//   }
+
+//   const photo = profile.photos.id(fieldId);
+
+//   if (!photo) {
+//     throw new ApiError(404, "Photo not found");
+//   }
+
+//   const publicPhotos = profile.photos.filter(
+//     (item) => item.visibility === "PUBLIC",
+//   );
+
+//   // At least 2 public photos must remain.
+//   if (photo.visibility === "PUBLIC" && publicPhotos.length <= 2) {
+//     throw new ApiError(400, "At least 2 public photos are required");
+//   }
+
+//   // Store values before removing subdocument.
+//   const deletedFileId = photo.fileId;
+//   const deletedVisibility = photo.visibility;
+//   const wasMainPhoto = photo.isMain;
+
+//   // Remove photo from MongoDB array.
+//   profile.photos.pull(photo._id);
+
+//   // Remaining public photos.
+//   const remainingPublicPhotos = profile.photos
+//     .filter((item) => item.visibility === "PUBLIC")
+//     .sort((a, b) => a.order - b.order);
+
+//   // Remaining private photos.
+//   const remainingPrivatePhotos = profile.photos
+//     .filter((item) => item.visibility === "PRIVATE")
+//     .sort((a, b) => a.order - b.order);
+
+//   // Reorder public photos.
+//   remainingPublicPhotos.forEach((item, index) => {
+//     item.order = index + 1;
+//   });
+
+//   // Reorder private photos.
+//   remainingPrivatePhotos.forEach((item, index) => {
+//     item.order = index + 1;
+//   });
+
+//   // If main photo was deleted, assign next public
+//   // photo as the main profile photo.
+//   if (deletedVisibility === "PUBLIC" && wasMainPhoto) {
+//     remainingPublicPhotos.forEach((item) => {
+//       item.isMain = false;
+//     });
+
+//     const newMainPhoto = remainingPublicPhotos[0];
+
+//     if (newMainPhoto) {
+//       newMainPhoto.isMain = true;
+
+//       profile.profileImage = newMainPhoto.url;
+
+//       profile.profileImageId = newMainPhoto.fileId;
+//     } else {
+//       profile.profileImage = null;
+//       profile.profileImageId = null;
+//     }
+//   }
+
+//   // First update MongoDB.
+//   await profile.save();
+
+//   // Then remove actual image from ImageKit.
+//   // MongoDB deletion should remain successful even if
+//   // ImageKit temporarily fails.
+//   try {
+//     await deletePhotoFromImageKit(deletedFileId);
+//   } catch (error) {
+//     console.error("ImageKit photo deletion failed:", {
+//       fileId: deletedFileId,
+//       message: error.message,
+//     });
+//   }
+
+//   return {
+//     deletedPhotoId: photoId,
+
+//     profileImage: profile.profileImage,
+
+//     profileImageId: profile.profileImageId,
+
+//     publicPhotos: remainingPublicPhotos,
+
+//     privatePhotos: remainingPrivatePhotos,
+
+//     publicPhotoCount: remainingPublicPhotos.length,
+
+//     privatePhotoCount: remainingPrivatePhotos.length,
+
+//     remainingPublicSlots: 6 - remainingPublicPhotos.length,
+
+//     remainingPrivateSlots: 6 - remainingPrivatePhotos.length,
+//   };
+// };
+
+// =====================================
+// UPDATE ABOUT ME SERVICE
+// =====================================
+
+
+
+
+export const deleteProfilePhotoService = async ({ userId, fieldId }) => {
   if (!userId) {
     throw new ApiError(401, "Authentication required");
   }
 
-  if (!photoId || !mongoose.Types.ObjectId.isValid(photoId)) {
+  if (!fieldId || !mongoose.Types.ObjectId.isValid(fieldId)) {
     throw new ApiError(400, "Invalid photo ID");
   }
 
@@ -1364,7 +1488,7 @@ export const deleteProfilePhotoService = async ({ userId, photoId }) => {
     throw new ApiError(404, "Profile not found");
   }
 
-  const photo = profile.photos.id(photoId);
+  const photo = profile.photos.id(fieldId);
 
   if (!photo) {
     throw new ApiError(404, "Photo not found");
@@ -1418,9 +1542,7 @@ export const deleteProfilePhotoService = async ({ userId, photoId }) => {
 
     if (newMainPhoto) {
       newMainPhoto.isMain = true;
-
       profile.profileImage = newMainPhoto.url;
-
       profile.profileImageId = newMainPhoto.fileId;
     } else {
       profile.profileImage = null;
@@ -1444,30 +1566,17 @@ export const deleteProfilePhotoService = async ({ userId, photoId }) => {
   }
 
   return {
-    deletedPhotoId: photoId,
-
+    deletedPhotoId: fieldId,
     profileImage: profile.profileImage,
-
     profileImageId: profile.profileImageId,
-
     publicPhotos: remainingPublicPhotos,
-
     privatePhotos: remainingPrivatePhotos,
-
     publicPhotoCount: remainingPublicPhotos.length,
-
     privatePhotoCount: remainingPrivatePhotos.length,
-
     remainingPublicSlots: 6 - remainingPublicPhotos.length,
-
     remainingPrivateSlots: 6 - remainingPrivatePhotos.length,
   };
 };
-
-// =====================================
-// UPDATE ABOUT ME SERVICE
-// =====================================
-
 export const updateAboutMeService = async ({
   userId,
   bio,
