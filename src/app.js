@@ -4,6 +4,7 @@ import authRoutes from './module/auth/auth.routes.js';
 import profileRoutes from './module/profile/profile.routes.js';
 import errormiddleware from './middleware/error.middleware.js'
 import exclusiveApplicationRoutes from "./module/meetzo_exclusive/exclusiveApplication.routes.js";
+
 import "dotenv/config";
 
 const app = express();
