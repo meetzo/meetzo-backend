@@ -205,11 +205,9 @@ const profileSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-
     // =====================================
     // CONNECTION PREFERENCES
     // =====================================
-
     meetzoGoal: {
       type: String,
       enum: [

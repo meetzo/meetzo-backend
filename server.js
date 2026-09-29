@@ -2,9 +2,7 @@
 // import cors from 'cors';
 // import connectDB from './src/config/db.js'
 
-
 // const PORT = process.env.PORT || 5001;
-
 
 // app.get('/', (req, res)=>{
 //     res.send('Meetzo server is up and running')
@@ -33,7 +31,6 @@
 //     );
 
 //   });
-
 
 import "dotenv/config";
 
@@ -71,7 +68,6 @@ const httpServer = http.createServer(app);
 
 initializeSocket(httpServer);
 
-
 console.log("");
 console.log("======================================");
 console.log("⏳ Connecting to MongoDB...");
@@ -80,14 +76,10 @@ console.log("");
 
 connectDB()
   .then(() => {
-
     console.log("======================================");
     console.log("✅ MongoDB connected successfully");
-   
-   
-   
+
     httpServer.listen(PORT, "0.0.0.0", () => {
-      
       console.log("======================================");
       console.log("🚀 MEETZO SERVER STARTED");
       console.log(`🌐 Port       : ${PORT}`);
@@ -95,7 +87,6 @@ connectDB()
       console.log("🔌 Socket.IO  : Initialized");
       console.log("🗄️  MongoDB    : Connected");
       console.log("======================================");
-  
     });
 
     /*
@@ -123,3 +114,4 @@ connectDB()
 
     process.exit(1);
   });
+

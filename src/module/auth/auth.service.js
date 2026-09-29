@@ -4,7 +4,6 @@ import signupAttemptModel from "../../models/signupAttemptModel.js";
 import mongoose from "mongoose";
 import { verifyGoogleIdToken } from "../../utils/googleClient.js";
 import { verifyAppleIdToken } from "../../utils/appleClient.js";
-
 import {
   generateToken,
   generateLoginOtpToken,
