@@ -4,9 +4,10 @@ import authRoutes from "./module/auth/auth.routes.js";
 import profileRoutes from "./module/profile/profile.routes.js";
 import errormiddleware from "./middleware/error.middleware.js";
 import exclusiveApplicationRoutes from "./module/meetzo_exclusive/exclusiveApplication.routes.js";
+import matchRoutes from "./module/matches/matches.routes.js";
+import multer from "multer";
 import likeRoute from "./module/likes/likes.routes.js";
 import "dotenv/config";
-
 const app = express();
 
 app.use(express.json());
@@ -29,8 +30,9 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/exclusive-applications", exclusiveApplicationRoutes);
 
 app.use("/api/like", likeRoute);
+app.use("/api/match", matchRoutes)
 
-import multer from "multer";
+
 
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
