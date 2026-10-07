@@ -4,6 +4,7 @@ import userModel from "../../models/userModel.js";
 import LikeModel from "../../models/like.Model.js";
 import ApiError from "../../utils/api.error.js";
 import profileModel from "../../models/profileModel.js";
+import MatchModel from "../../models/chatModel.js";
 
 /**
  * -------------------------------------------------------
@@ -349,16 +350,43 @@ export const getLikeStatusService = async ({ fromUserId, toUserId }) => {
  * -------------------------------------------------------
  */
 export const getReceivedLikesCountService = async ({ userId }) => {
-  const count = await LikeModel.countDocuments({
-    toUserId: userId,
+  if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    throw new ApiError(400, "Invalid user id");
+  }
+
+  const loggedInUserId = new mongoose.Types.ObjectId(userId);
+
+  // Get all active matches of logged-in user
+  const matches = await MatchModel.find({
     status: "ACTIVE",
+    $or: [
+      { user1Id: loggedInUserId },
+      { user2Id: loggedInUserId },
+    ],
+  })
+    .select("user1Id user2Id")
+    .lean();
+
+  // Get matched users' IDs
+  const matchedUserIds = matches.map((match) => {
+    return match.user1Id.toString() === loggedInUserId.toString()
+      ? match.user2Id
+      : match.user1Id;
+  });
+
+  // Count received likes, excluding already matched users
+  const count = await LikeModel.countDocuments({
+    toUserId: loggedInUserId,
+    status: "ACTIVE",
+    fromUserId: {
+      $nin: matchedUserIds,
+    },
   });
 
   return {
     count,
   };
 };
-
 /**
  * -------------------------------------------------------
  * GET SENT LIKES COUNT
@@ -393,34 +421,73 @@ export const getSentLikesCountService = async ({ userId }) => {
  *      ↓
  * Profile
  */
+
 export const getLikedProfilesService = async ({
   userId,
   page = 1,
   limit = 20,
 }) => {
-  /**
-   * Validate logged-in user
-   */
   if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
     throw new ApiError(400, "Invalid user id");
   }
 
-  /**
-   * Normalize pagination using your existing helper
-   */
   const pagination = normalizePagination({
     page,
     limit,
   });
 
-  const filter = {
-    fromUserId: userId,
+  const loggedInUserId = new mongoose.Types.ObjectId(userId);
+
+  // ========================================
+  // GET ALL MATCHES OF LOGGED-IN USER
+  // ========================================
+
+  const matches = await MatchModel.find({
     status: "ACTIVE",
+
+    $or: [
+      {
+        user1Id: loggedInUserId,
+      },
+      {
+        user2Id: loggedInUserId,
+      },
+    ],
+  })
+    .select("user1Id user2Id")
+    .lean();
+
+  // ========================================
+  // GET MATCHED USER IDS
+  // ========================================
+
+  const matchedUserIds = matches.map((match) => {
+    const user1Id = match.user1Id.toString();
+
+    const user2Id = match.user2Id.toString();
+
+    return user1Id === userId.toString() ? match.user2Id : match.user1Id;
+  });
+
+  // ========================================
+  // LIKED USERS FILTER
+  // EXCLUDE MATCHED USERS
+  // ========================================
+
+  const filter = {
+    fromUserId: loggedInUserId,
+
+    status: "ACTIVE",
+
+    toUserId: {
+      $nin: matchedUserIds,
+    },
   };
 
-  /**
-   * Fetch likes + count in parallel
-   */
+  // ========================================
+  // FETCH LIKES
+  // ========================================
+
   const [likes, total] = await Promise.all([
     LikeModel.find(filter)
       .select("_id toUserId createdAt")
@@ -434,77 +501,72 @@ export const getLikedProfilesService = async ({
     LikeModel.countDocuments(filter),
   ]);
 
-  /**
-   * No likes found
-   */
+  // ========================================
+  // NO LIKES FOUND
+  // ========================================
+
   if (likes.length === 0) {
     return {
       data: [],
 
       pagination: {
         currentPage: pagination.page,
+
         limit: pagination.limit,
+
         total: 0,
+
         totalPages: 0,
+
         hasNextPage: false,
+
         hasPreviousPage: pagination.page > 1,
+
         nextPage: null,
+
         previousPage: pagination.page > 1 ? pagination.page - 1 : null,
       },
     };
   }
 
-  /**
-   * Get IDs of liked users
-   */
+  // ========================================
+  // LIKED USER IDS
+  // ========================================
+
   const likedUserIds = likes.map((like) => like.toUserId);
 
-  /**
-   * Fetch profiles of liked users
-   */
+  // ========================================
+  // FETCH PROFILES
+  // ========================================
+
   const profiles = await profileModel
     .find({
       userId: {
         $in: likedUserIds,
       },
     })
+
     .populate({
       path: "userId",
 
-      /**
-       * Only return fields that are safe
-       * to expose to another user.
-       *
-       * Add/remove fields according to
-       * your user schema.
-       */
       select: ["_id", "name", "email", "phone", "isBlocked"].join(" "),
 
-      /**
-       * Don't expose blocked users
-       */
       match: {
         isBlocked: {
           $ne: true,
         },
       },
     })
+
     .lean();
 
-  /**
-   * Create profile map:
-   *
-   * userId => profile
-   *
-   * This avoids nested loops.
-   */
+  // ========================================
+  // CREATE PROFILE MAP
+  // ========================================
+
   const profileMap = new Map();
 
   for (const profile of profiles) {
-    /**
-     * populate match can return null
-     * when user is blocked
-     */
     if (!profile.userId) {
       continue;
     }
@@ -512,19 +574,14 @@ export const getLikedProfilesService = async ({
     profileMap.set(profile.userId._id.toString(), profile);
   }
 
-  /**
-   * Maintain like order.
-   *
-   * Most recently liked profile
-   * stays first.
-   */
+  // ========================================
+  // FORMAT RESPONSE
+  // ========================================
+
   const data = likes
     .map((like) => {
       const profile = profileMap.get(like.toUserId.toString());
 
-      /**
-       * Profile missing/deleted/blocked
-       */
       if (!profile) {
         return null;
       }
@@ -536,24 +593,20 @@ export const getLikedProfilesService = async ({
 
         isLiked: true,
 
-        /**
-         * User basic information
-         */
         user: profile.userId,
 
-        /**
-         * Complete profile document.
-         *
-         * userId already exists separately,
-         * so remove it from profile object.
-         */
         profile: {
           ...profile,
+
           userId: undefined,
         },
       };
     })
     .filter(Boolean);
+
+  // ========================================
+  // PAGINATION
+  // ========================================
 
   const totalPages = total === 0 ? 0 : Math.ceil(total / pagination.limit);
 

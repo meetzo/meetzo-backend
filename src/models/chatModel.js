@@ -65,13 +65,11 @@ const participantStateSchema = new mongoose.Schema(
   }
 );
 
-
 /*
 |--------------------------------------------------------------------------
 | Chat Schema
 |--------------------------------------------------------------------------
 */
-
 const chatSchema = new mongoose.Schema(
   {
     /*

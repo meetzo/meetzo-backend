@@ -105,6 +105,7 @@ export const getReceivedLikesController = async (req, res, next) => {
       success: true,
 
       message: "Received likes fetched successfully",
+      count: result.data.length,
 
       data: result.data,
 
@@ -187,8 +188,6 @@ export const getSentLikesCountController = async (req, res, next) => {
   }
 };
 
-
-
 /**
  * -------------------------------------------------------
  * GET LIKED PROFILES
@@ -197,34 +196,24 @@ export const getSentLikesCountController = async (req, res, next) => {
  * Returns all profiles liked by
  * currently logged-in user.
  */
-export const getLikedProfilesController = async (
-  req,
-  res,
-  next
-) => {
+export const getLikedProfilesController = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    const {
-      page = 1,
-      limit = 20,
-    } = req.query;
+    const { page = 1, limit = 20 } = req.query;
 
-    const result =
-      await getLikedProfilesService({
-        userId,
-        page,
-        limit,
-      });
+    const result = await getLikedProfilesService({
+      userId,
+      page,
+      limit,
+    });
 
     return res.status(200).json({
       success: true,
 
-      message:
-        "Liked profiles fetched successfully",
-
+      message: "Liked profiles fetched successfully",
+      count: result.data.length,
       data: result.data,
-
       pagination: result.pagination,
     });
   } catch (error) {
