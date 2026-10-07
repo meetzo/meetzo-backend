@@ -25,7 +25,7 @@ router.use(isAuthenticated);
  * LIKE USER
  *
  * Example:
- * POST /api/likes/USER_ID
+ * POST /api/like/USER_ID
  */
 router.post("/:userId", likeUserController);
 

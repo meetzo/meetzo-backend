@@ -28,12 +28,12 @@ router.get("/", getUserChatsController);
 // Legacy multipart endpoint retained; normal message sends are text-only.
 router.post("/:chatId/media", uploadChatMedia, sendChatMediaController);
 router.get("/:chatId", getChatByIdController);
-router.get("/:chatId/messages", getChatMessagesController);
-router.post("/:chatId/messages", sendMessageController);
+router.get("/messages/:chatId", getChatMessagesController);
+router.post("/messages/:chatId", sendMessageController);
 // Receipt and archive operations act on the authenticated participant's state.
-router.patch("/:chatId/delivered", markChatAsDeliveredController);
-router.patch("/:chatId/read", markChatAsReadController);
-router.patch("/:chatId/archive", archiveChatController);
+router.patch("/delivered/:chatId", markChatAsDeliveredController);
+router.patch("/read/:chatId", markChatAsReadController);
+router.patch("/archive/:chatId", archiveChatController);
 // Message deletion defaults to "for me" unless deleteForEveryone is true.
 router.patch("/message/:messageId", editMessageController);
 router.delete("/message/:messageId", deleteMessageController);

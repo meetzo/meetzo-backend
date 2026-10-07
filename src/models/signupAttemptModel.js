@@ -30,12 +30,6 @@ const signupAttemptSchema = new mongoose.Schema(
       select: false,
     },
 
-    passwordHash: {
-      type: String,
-      required: true,
-      select: false,
-    },
-
     otpExpiresAt: {
       type: Date,
       required: true,

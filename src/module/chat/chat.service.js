@@ -222,7 +222,7 @@ const updateChatAfterSend = async (chat, senderId, receiverId, message, session)
       },
       lastMessageAt: { $max: ["$lastMessageAt", message.createdAt] },
     },
-  }], { session });
+  }], { session, updatePipeline: true });
   if (!result.matchedCount) throw fail("Chat not found", 404);
 };
 

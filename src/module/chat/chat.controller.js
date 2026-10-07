@@ -55,11 +55,11 @@ export const getChatMessagesController = async (req, res, next) => {
       page: req.query.page, limit: req.query.limit,
     });
     res.status(200).json({ success: true, message: "Messages fetched successfully",
-      data: result.messages, pagination: result.pagination });
+      data: result.messages, count: result.count, pagination: result.pagination });
   } catch (error) { next(error); }
 };
 
-// POST /:chatId/messages accepts text only. A repeated clientMessageId gets
+// POST /messages/:chatId accepts text only. A repeated clientMessageId gets
 // the existing message and must not trigger a second realtime notification.
 export const sendMessageController = async (req, res, next) => {
   try {
