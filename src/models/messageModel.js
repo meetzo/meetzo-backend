@@ -17,6 +17,11 @@ const mediaSchema = new mongoose.Schema(
       default: null,
     },
 
+    fileId: {
+      type: String,
+      default: null,
+    },
+
     mimeType: {
       type: String,
       default: null,
@@ -202,7 +207,10 @@ const messageSchema = new mongoose.Schema(
 |--------------------------------------------------------------------------
 */
 
-messageSchema.pre("validate", function (next) {
+messageSchema.pre("validate", function () {
+  // A deleted message is a content-free tombstone visible to both participants.
+  if (this.isDeletedForEveryone) return;
+
   /*
    * TEXT message me actual text hona compulsory.
    */
@@ -211,11 +219,7 @@ messageSchema.pre("validate", function (next) {
     this.messageType === "TEXT" &&
     !this.message?.trim()
   ) {
-    return next(
-      new Error(
-        "Text message cannot be empty"
-      )
-    );
+    throw new Error("Text message cannot be empty");
   }
 
   /*
@@ -226,14 +230,8 @@ messageSchema.pre("validate", function (next) {
     this.messageType !== "TEXT" &&
     !this.media?.url
   ) {
-    return next(
-      new Error(
-        "Media URL is required for media messages"
-      )
-    );
+    throw new Error("Media URL is required for media messages");
   }
-
-  next();
 });
 
 

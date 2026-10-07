@@ -1,3 +1,3 @@
-// utils/generateOtp.js
+import { randomInt } from "node:crypto";
 
-export const generateOtp = () => Math.floor(1000 + Math.random() * 9000).toString();
+export const generateOtp = () => randomInt(1000, 10000).toString();

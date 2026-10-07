@@ -34,6 +34,17 @@ const MAX_OTP_ATTEMPTS = 5;
 const SIGNUP_OTP_EXPIRY_MINUTES = 10;
 const DUMMY_MOBILE_OTP = "1234";
 
+const ensureAuthConfiguration = (...names) => {
+  const missing = names.filter((name) => !process.env[name]);
+
+  if (missing.length > 0) {
+    throw new ApiError(
+      500,
+      `Missing required authentication configuration: ${missing.join(", ")}`,
+    );
+  }
+};
+
 const generateOtpToken = (email) => {
   return jwt.sign({ email }, process.env.OTP_TOKEN_SECRET, {
     expiresIn: "10m",
@@ -61,7 +72,14 @@ const generateSignupOtpToken = ({ signupAttemptId }) => {
 // SIGNUP SERVICE
 // =====================================================
 
-export const signupService = async ({ name, email, phone }) => {
+export const signupService = async ({ name, email, phone, password }) => {
+  ensureAuthConfiguration(
+    "JWT_SECRET",
+    "OTP_TOKEN_SECRET",
+    "EMAIL_USER",
+    "APP_PASSWORD",
+  );
+
   // ---------------------------------------
   // VALIDATION
   // ---------------------------------------
@@ -80,10 +98,18 @@ export const signupService = async ({ name, email, phone }) => {
     throw new ApiError(400, "Name is required");
   }
 
+  if (typeof password !== "string" || password.length < 8) {
+    throw new ApiError(400, "Password must be at least 8 characters");
+  }
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!emailRegex.test(normalizedEmail)) {
     throw new ApiError(400, "Please enter a valid email address");
+  }
+
+  if (!/^\+?[0-9]{10,15}$/.test(normalizedPhone)) {
+    throw new ApiError(400, "Phone number must contain 10 to 15 digits");
   }
 
   // ---------------------------------------
@@ -104,6 +130,8 @@ export const signupService = async ({ name, email, phone }) => {
   if (existingUser) {
     throw new ApiError(409, "User already exists with this email or phone");
   }
+
+  const passwordHash = await bcrypt.hash(password, 12);
 
   // ---------------------------------------
   // GENERATE OTP
@@ -144,6 +172,8 @@ export const signupService = async ({ name, email, phone }) => {
     phone: normalizedPhone,
 
     otpHash,
+
+    passwordHash,
 
     otpExpiresAt,
 
@@ -417,6 +447,8 @@ export const signupService = async ({ name, email, phone }) => {
 // };
 
 export const verifySignupOtpService = async ({ otpToken, otp }) => {
+  ensureAuthConfiguration("OTP_TOKEN_SECRET", "JWT_SECRET");
+
   // ==========================================
   // 1. VALIDATION
   // ==========================================
@@ -473,13 +505,18 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
 
   const signupAttempt = await signupAttemptModel
     .findById(payload.signupAttemptId)
-    .select("+otpHash");
+    .select("+otpHash +passwordHash");
 
   if (!signupAttempt) {
     throw new ApiError(
       404,
       "Signup session not found or expired. Please signup again.",
     );
+  }
+
+  if (!signupAttempt.passwordHash) {
+    await signupAttemptModel.deleteOne({ _id: signupAttempt._id });
+    throw new ApiError(400, "Signup session is outdated. Please sign up again.");
   }
 
   // ==========================================
@@ -605,6 +642,7 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
       name: normalizedName,
       email: normalizedEmail,
       phone: normalizedPhone,
+      password: signupAttempt.passwordHash,
 
       // Explicitly local signup
       authProvider: "local",
@@ -613,94 +651,25 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
       isBlocked: false,
     });
   } catch (error) {
-    // ========================================
-    // DEBUG ACTUAL DATABASE ERROR
-    // ========================================
-
-    console.error("========== USER CREATE ERROR ==========");
-
-    console.error("Error code:", error?.code);
-
-    console.error("Key pattern:", error?.keyPattern);
-
-    console.error("Key value:", error?.keyValue);
-
-    console.error("Mongo message:", error?.message);
-
-    console.error("=======================================");
-
-    // ========================================
-    // HANDLE DUPLICATE KEY
-    // ========================================
-
     if (error?.code === 11000) {
       const duplicateField =
         Object.keys(error?.keyPattern ?? {})[0] ||
         Object.keys(error?.keyValue ?? {})[0];
 
-      const duplicateValue = duplicateField
-        ? error?.keyValue?.[duplicateField]
-        : undefined;
-
-      console.error("Duplicate field:", duplicateField);
-
-      console.error("Duplicate value:", duplicateValue);
-
-      // EMAIL
       if (duplicateField === "email") {
         throw new ApiError(409, "User already registered with this email");
       }
 
-      // PHONE
       if (duplicateField === "phone" || duplicateField === "fullPhone") {
-        // Important for debugging old/null indexes
-        if (duplicateValue === null || duplicateValue === undefined) {
-          throw new ApiError(
-            409,
-            `Database unique index issue on ${duplicateField}. Duplicate null value detected.`,
-          );
-        }
-
         throw new ApiError(
           409,
           "User already registered with this phone number",
         );
       }
 
-      // GOOGLE ID
-      if (duplicateField === "googleId") {
-        if (duplicateValue === null || duplicateValue === undefined) {
-          throw new ApiError(
-            409,
-            "Database unique index issue on googleId. Duplicate null value detected.",
-          );
-        }
-
-        throw new ApiError(409, "This Google account is already registered");
-      }
-
-      // APPLE ID
-      if (duplicateField === "appleId") {
-        if (duplicateValue === null || duplicateValue === undefined) {
-          throw new ApiError(
-            409,
-            "Database unique index issue on appleId. Duplicate null value detected.",
-          );
-        }
-
-        throw new ApiError(409, "This Apple account is already registered");
-      }
-
-      // ANY OTHER UNIQUE FIELD
-      throw new ApiError(
-        409,
-        duplicateField
-          ? `Duplicate value found for unique field: ${duplicateField}`
-          : "Duplicate user data found",
-      );
+      throw new ApiError(409, "User data is already registered");
     }
 
-    // Any non-Mongo duplicate error
     throw error;
   }
 
@@ -763,6 +732,8 @@ export const verifySignupOtpService = async ({ otpToken, otp }) => {
 
 // Login service
 export const loginService = async ({ email, password }) => {
+  ensureAuthConfiguration("JWT_SECRET");
+
   if (!email || !password) {
     throw new ApiError(400, "Email and password are required");
   }
