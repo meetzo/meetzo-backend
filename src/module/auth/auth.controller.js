@@ -2,7 +2,6 @@ import asyncHandler from "../../utils/asyncHandler.js";
 
 import {
   signupService,
-  loginService,
   getUserByIdService,
   verifySignupOtpService,
   sendEmailLoginOtpService,
@@ -17,24 +16,19 @@ import {
 } from "./auth.service.js";
 
 import ApiError from "../../utils/api.error.js";
-import {
-  loginSchema,
-  signupOtpSchema,
-  signupSchema,
-  validateAuthBody,
-} from "./auth.validation.js";
 
 // =====================================================
-// SIGNUP - SEND OTP
+// SIGNUP - SEND OTP ONLY
 // =====================================================
 
 export const signup = asyncHandler(async (req, res) => {
-  const signupData = validateAuthBody(signupSchema, req.body);
-  const result = await signupService(signupData);
+  const result = await signupService(req.body || {});
 
   return res.status(200).json({
     success: true,
     message: result.message,
+
+    // No user created yet
     token: result.otpToken,
   });
 });
@@ -56,11 +50,15 @@ export const verifySignupOtp = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Invalid OTP bearer token");
   }
 
-  const { otp } = validateAuthBody(signupOtpSchema, req.body);
+  const { otp } = req.body || {};
+
+  if (otp === undefined || otp === null || String(otp).trim() === "") {
+    throw new ApiError(400, "OTP is required");
+  }
 
   const result = await verifySignupOtpService({
     otpToken,
-    otp,
+    otp: String(otp).trim(),
   });
 
   return res.status(201).json({
@@ -70,18 +68,6 @@ export const verifySignupOtp = asyncHandler(async (req, res) => {
 
     token: result.token,
 
-    data: result.user,
-  });
-});
-
-export const login = asyncHandler(async (req, res) => {
-  const loginData = validateAuthBody(loginSchema, req.body);
-  const result = await loginService(loginData);
-
-  return res.status(200).json({
-    success: true,
-    message: "Login successful",
-    token: result.token,
     data: result.user,
   });
 });
