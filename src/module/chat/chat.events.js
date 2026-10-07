@@ -1,7 +1,6 @@
 import { getIO } from "../../socket/socket.js";
 
-// Send to personal rooms, not just the currently open chat room. Socket.IO
-// deduplicates sockets that belong to more than one targeted room.
+// Send private updates to every device signed in as each user.
 export const emitChatEvent = (event, data, userIds) => {
   try {
     const io = getIO();
@@ -17,8 +16,7 @@ export const emitChatEvent = (event, data, userIds) => {
   }
 };
 
-// message:new updates an open conversation; chat:update refreshes inboxes on
-// every device. The sender is included to synchronize their other devices.
+// Tell both users about a new message, including the sender's other devices.
 export const emitNewMessage = (message) => {
   const users = [message.senderId, message.receiverId];
   emitChatEvent("message:new", message, users);

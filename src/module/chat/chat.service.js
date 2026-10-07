@@ -291,16 +291,24 @@ export const sendTextMessageService = async ({ chatId, senderId, clientMessageId
   }
 };
 
-// Preserve the existing media controller contract without accepting media in normal text sends.
-export const sendMessageService = async (input) => (await persistMessage(input)).message;
+// Keep the created flag so a retried media send does not send a second event.
+export const sendMessageService = async (input) => persistMessage(input);
 
 // Delivery is an explicit recipient acknowledgement, not a guess based on
 // whether a socket happened to be connected. READ messages stay READ.
 export const markChatAsDeliveredService = async ({ chatId, userId }) => {
   const chat = await getParticipantChatService({ chatId, userId });
   const deliveredAt = new Date();
+  // Do not send a receipt for a message this user has hidden or deleted.
+  const filter = visibleMessages(chat, userId);
   const result = await MessageModel.updateMany(
-    { chatId, receiverId: userId, status: "SENT", createdAt: { $lte: deliveredAt } },
+    {
+      ...filter,
+      receiverId: userId,
+      status: "SENT",
+      isDeletedForEveryone: { $ne: true },
+      createdAt: { ...(filter.createdAt || {}), $lte: deliveredAt },
+    },
     { $set: { status: "DELIVERED", deliveredAt } },
   );
   return { chatId, userId, senderId: otherId(chat, userId), deliveredAt, modifiedMessages: result.modifiedCount };
@@ -401,9 +409,14 @@ export const editMessageService = async ({ messageId, userId, message }) => {
   if (existing.messageType !== "TEXT" || existing.isDeletedForEveryone) {
     throw fail("This message cannot be edited", 400);
   }
+  // A message hidden by its sender cannot be edited from their screen.
+  if (existing.deletedFor?.some((id) => idString(id) === idString(userId))) {
+    throw fail("This message cannot be edited", 400);
+  }
   if (Date.now() - existing.createdAt.getTime() > windowMs) throw fail("Edit window has expired", 400);
   const updated = await MessageModel.findOneAndUpdate(
-    { _id: messageId, senderId: userId, isDeletedForEveryone: false, messageType: "TEXT",
+    { _id: messageId, senderId: userId, deletedFor: { $ne: userId },
+      isDeletedForEveryone: false, messageType: "TEXT",
       createdAt: { $gte: new Date(Date.now() - windowMs) } },
     { $set: { message: message.trim(), isEdited: true, editedAt: new Date() } },
     { new: true, runValidators: true },

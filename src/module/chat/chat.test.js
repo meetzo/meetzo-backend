@@ -11,6 +11,7 @@ import UserModel from "../../models/userModel.js";
 import {
   sendTextMessageService, accessChatService, getChatMessagesService,
   getUserChatsService, deleteMessageService, markChatAsReadService,
+  markChatAsDeliveredService, sendMessageService,
   archiveChatService, editMessageService, getMessageViewersService,
 } from "./chat.service.js";
 import { requireChatAuth } from "./chat.auth.js";
@@ -72,6 +73,28 @@ test("retry returns existing message and never increments unread count twice", a
   const result = await sendTextMessageService({ chatId, senderId: userA, clientMessageId: "client-1", message: "hello" });
   assert.equal(result.created, false);
   assert.equal(result.message, existing);
+  assert.equal(create.mock.callCount(), 0);
+  assert.equal(update.mock.callCount(), 0);
+});
+
+test("media send retry returns the saved message and reports that it was not created again", async (t) => {
+  matchMocks(t);
+  const existing = { _id: id(), chatId, senderId: userA, receiverId: userB, messageType: "IMAGE" };
+  t.mock.method(MessageModel, "findOne", async () => existing);
+  const create = t.mock.method(MessageModel, "create", async () => {
+    throw Error("A retry must not create another message");
+  });
+  const update = t.mock.method(ChatModel, "updateOne", async () => {
+    throw Error("A retry must not update unread counts");
+  });
+
+  const result = await sendMessageService({
+    chatId, senderId: userA, clientMessageId: "media-retry",
+    messageType: "IMAGE", media: { url: "https://example.com/image.png" },
+  });
+
+  assert.equal(result.message, existing);
+  assert.equal(result.created, false);
   assert.equal(create.mock.callCount(), 0);
   assert.equal(update.mock.callCount(), 0);
 });
@@ -219,6 +242,24 @@ test("read receipts exclude personally cleared and deleted messages", async (t) 
   assert.deepEqual(updated.isDeletedForEveryone, { $ne: true });
 });
 
+test("delivery receipts ignore messages hidden from the recipient", async (t) => {
+  const chat = makeChat();
+  chat.participantStates[0].deletedAt = new Date("2025-01-01");
+  t.mock.method(ChatModel, "findById", async () => chat);
+  let updated;
+  t.mock.method(MessageModel, "updateMany", async (filter) => {
+    updated = filter;
+    return { modifiedCount: 1 };
+  });
+
+  await markChatAsDeliveredService({ chatId, userId: userA });
+
+  assert.equal(updated.createdAt.$gt, chat.participantStates[0].deletedAt);
+  assert.ok(updated.createdAt.$lte);
+  assert.deepEqual(updated.deletedFor, { $ne: userA });
+  assert.deepEqual(updated.isDeletedForEveryone, { $ne: true });
+});
+
 test("archive affects only requesting participant", async (t) => {
   t.mock.method(ChatModel, "findById", async () => makeChat());
   let filter;
@@ -240,6 +281,10 @@ test("message edit is sender-only and excludes users who deleted it from edit no
   t.mock.method(LikeModel, "exists", async () => true);
   await assert.rejects(editMessageService({ messageId: message._id, userId: userB, message: "bad" }),
     (error) => error.statusCode === 403);
+  message.deletedFor = [userA];
+  await assert.rejects(editMessageService({ messageId: message._id, userId: userA, message: "bad" }),
+    (error) => error.statusCode === 400);
+  message.deletedFor = [userB];
   const result = await editMessageService({ messageId: message._id, userId: userA, message: "new" });
   assert.deepEqual((await getMessageViewersService(result)).map(String), [String(userA)]);
 });

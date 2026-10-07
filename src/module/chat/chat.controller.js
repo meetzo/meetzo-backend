@@ -16,7 +16,6 @@ import {
 } from "./chat.service.js";
 import { emitChatEvent, emitNewMessage } from "./chat.events.js";
 import { deleteChatMediaService, uploadChatMediaService } from "./chatMedia.service.js";
-import { getIO } from "../../socket/socket.js";
 import ApiError from "../../utils/api.error.js";
 
 // HTTP handlers keep the response shape stable; the service owns validation
@@ -85,27 +84,31 @@ export const sendChatMediaController = async (req, res, next) => {
   try {
     const { chatId } = req.params;
     const { clientMessageId, caption = "" } = req.body || {};
-    if (typeof clientMessageId !== "string" || !clientMessageId.trim()) {
-      throw new ApiError(400, "clientMessageId is required");
+    if (typeof clientMessageId !== "string" || !clientMessageId.trim() || clientMessageId.length > 128) {
+      throw new ApiError(400, "clientMessageId is required (maximum 128 characters)");
     }
     if (typeof caption !== "string" || caption.length > 5000) {
       throw new ApiError(400, "Caption must be 5000 characters or fewer");
     }
     await assertChatParticipantService({ chatId, userId: req.user._id });
     uploadedMedia = await uploadChatMediaService({ file: req.file });
-    const message = await sendMessageService({
+    const result = await sendMessageService({
       chatId, senderId: req.user._id, clientMessageId: clientMessageId.trim(),
       message: caption, messageType: uploadedMedia.type, media: uploadedMedia.media,
     });
-    try {
-      const io = getIO();
-      const receiverId = message.receiverId?._id ?? message.receiverId;
-      io.to(`chat:${chatId}`).emit("message:new", message);
-      io.to(`user:${receiverId}`).emit("chat:update", message);
-    } catch (error) {
-      console.error("Media message saved but realtime notification failed:", error);
+    if (!result.created) {
+      // A retry already has a saved message, so remove the extra uploaded copy.
+      await deleteChatMediaService(uploadedMedia.media.fileId);
+      uploadedMedia = undefined;
+    } else {
+      // Send updates to both users' devices, even if they have not joined this chat.
+      emitNewMessage(result.message);
     }
-    return res.status(201).json({ success: true, message: "Media message sent successfully", data: message });
+    return res.status(result.created ? 201 : 200).json({
+      success: true,
+      message: result.created ? "Media message sent successfully" : "Media message already sent",
+      data: result.message,
+    });
   } catch (error) {
     if (uploadedMedia?.media?.fileId) await deleteChatMediaService(uploadedMedia.media.fileId);
     next(error);
