@@ -5,6 +5,10 @@ import ApiError from "../../utils/api.error.js";
 import imageKit from "./imageKit.service.js";
 import { calculateProfileCompletion } from "../../utils/calculateProfileCompletion.js";
 
+
+
+
+
 /**
  * Calculate age from date of birth.
  */
@@ -1626,3 +1630,73 @@ export const updateAboutMeService = async ({
     showBioOnProfile: profile.showBioOnProfile,
   };
 };
+
+
+
+
+export const updateUserLocationService = async ({
+  userId,
+  latitude,
+  longitude,
+}) => {
+  if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    throw new ApiError(400, "Invalid user id");
+  }
+
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    throw new ApiError(
+      400,
+      "Valid latitude and longitude are required"
+    );
+  }
+
+  if (lat < -90 || lat > 90) {
+    throw new ApiError(
+      400,
+      "Latitude must be between -90 and 90"
+    );
+  }
+
+  if (lng < -180 || lng > 180) {
+    throw new ApiError(
+      400,
+      "Longitude must be between -180 and 180"
+    );
+  }
+
+  const profile = await profileModel.findOneAndUpdate(
+    {
+      userId,
+    },
+    {
+      $set: {
+        location: {
+          type: "Point",
+
+          // IMPORTANT:
+          // MongoDB GeoJSON = [longitude, latitude]
+          coordinates: [lng, lat],
+        },
+
+        locationUpdatedAt: new Date(),
+      },
+    },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+
+  if (!profile) {
+    throw new ApiError(404, "Profile not found");
+  }
+
+  return {
+    location: profile.location,
+    locationUpdatedAt: profile.locationUpdatedAt,
+  };
+};
+

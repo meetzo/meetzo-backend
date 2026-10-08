@@ -12,6 +12,7 @@ import {
   updateAboutMeService,
   getMyProfilePhotosService,
   deleteProfilePhotoService,
+  updateUserLocationService,
 } from "./profile.service.js";
 
 export const saveProfileDetailsController = asyncHandler(async (req, res) => {
@@ -244,3 +245,34 @@ export const deleteProfilePhoto = asyncHandler(async (req, res) => {
     data: result,
   });
 });
+
+export const updateUserLocationController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const userId = req.user._id;
+
+    const {
+      latitude,
+      longitude,
+    } = req.body;
+
+    const result =
+      await updateUserLocationService({
+        userId,
+        latitude,
+        longitude,
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Location updated successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

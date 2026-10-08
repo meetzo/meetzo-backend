@@ -10,7 +10,6 @@ const userSchema = new mongoose.Schema(
 
     email: {
       type: String,
-
       sparse: true,
       trim: true,
       lowercase: true,
@@ -113,7 +112,7 @@ const userSchema = new mongoose.Schema(
   {
     timestamps: true,
     versionKey: false,
-  }
+  },
 );
 
 userSchema.index({ createdAt: -1 });
