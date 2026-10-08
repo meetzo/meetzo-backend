@@ -5,10 +5,6 @@ import ApiError from "../../utils/api.error.js";
 import imageKit from "./imageKit.service.js";
 import { calculateProfileCompletion } from "../../utils/calculateProfileCompletion.js";
 
-
-
-
-
 /**
  * Calculate age from date of birth.
  */
@@ -88,17 +84,273 @@ const normalizeOptionalString = (value) => {
   return normalizedValue || null;
 };
 
+// export const saveProfileDetailsService = async ({
+//   userId,
+//   profileData = {},
+// }) => {
+//   // Authentication validation
+//   if (!userId) {
+//     throw new ApiError(401, "Authentication is required");
+//   }
+
+//   // Check whether user exists
+//   const user = await userModel.findById(userId).select("_id isBlocked");
+
+//   if (!user) {
+//     throw new ApiError(404, "User not found");
+//   }
+
+//   if (user.isBlocked) {
+//     throw new ApiError(403, "Your account has been blocked");
+//   }
+
+//   const {
+//     dateOfBirth,
+//     height,
+//     languages,
+
+//     gender,
+//     genderDescription,
+//     showGenderOnProfile,
+
+//     profession,
+//     customProfession,
+
+//     orientation,
+//     customOrientation,
+//     showOrientationOnProfile,
+
+//     meetzoGoal,
+//     relationshipPace,
+
+//     smoking,
+//     drinking,
+//     fitness,
+//     pets,
+
+//     selfDescription,
+//     interests,
+
+//     religion,
+//     customReligion,
+
+//     idealWeekend,
+//     values,
+//   } = profileData;
+
+//   // Basic required-field validation
+//   const requiredFields = {
+//     dateOfBirth,
+//     height,
+//     languages,
+//     gender,
+//     profession,
+//     orientation,
+//     meetzoGoal,
+//     relationshipPace,
+//     smoking,
+//     drinking,
+//     fitness,
+//     pets,
+//     selfDescription,
+//     interests,
+//     religion,
+//     idealWeekend,
+//     values,
+//   };
+
+//   const missingField = Object.entries(requiredFields).find(
+//     ([, value]) =>
+//       value === undefined ||
+//       value === null ||
+//       value === "" ||
+//       (Array.isArray(value) && value.length === 0),
+//   );
+
+//   if (missingField) {
+//     throw new ApiError(400, `${missingField[0]} is required`);
+//   }
+
+//   // Date-of-birth and age validation
+//   const age = calculateAge(dateOfBirth);
+
+//   if (age < 18) {
+//     throw new ApiError(400, "You must be at least 18 years old");
+//   }
+
+//   // Height object validation
+//   if (typeof height !== "object" || height === null || Array.isArray(height)) {
+//     throw new ApiError(400, "Height must contain value and unit");
+//   }
+
+//   const heightValue = Number(height.value);
+
+//   const heightUnit = String(height.unit || "")
+//     .trim()
+//     .toUpperCase();
+
+//   if (
+//     !Number.isFinite(heightValue) ||
+//     heightValue <= 0 ||
+//     !["CM", "FT", "IN"].includes(heightUnit)
+//   ) {
+//     throw new ApiError(400, "Valid height value and unit are required");
+//   }
+
+//   // Normalize array fields
+//   const normalizedLanguages = normalizeArray(languages);
+
+//   const normalizedSelfDescription = normalizeArray(selfDescription);
+
+//   const normalizedInterests = normalizeArray(interests);
+
+//   const normalizedIdealWeekend = normalizeArray(idealWeekend);
+
+//   const normalizedValues = normalizeArray(values);
+
+//   // Validate arrays
+//   if (normalizedLanguages.length === 0) {
+//     throw new ApiError(400, "At least one language is required");
+//   }
+
+//   if (normalizedSelfDescription.length < 1) {
+//     throw new ApiError(400, "Select more than 1 personality traits");
+//   }
+
+//   if (normalizedInterests.length < 1 || normalizedInterests.length > 6) {
+//     throw new ApiError(400, "Select between 1 and 6 interests");
+//   }
+
+//   if (normalizedIdealWeekend.length < 1 || normalizedIdealWeekend.length > 6) {
+//     throw new ApiError(400, "Select between 1 and 6 weekend preferences");
+//   }
+
+//   if (normalizedValues.length < 1 || normalizedValues.length > 6) {
+//     throw new ApiError(400, "Select between 1 and 6 values");
+//   }
+
+//   // Normalize optional/manual fields
+//   const normalizedGenderDescription =
+//     normalizeOptionalString(genderDescription);
+
+//   const normalizedCustomProfession = normalizeOptionalString(customProfession);
+
+//   const normalizedCustomOrientation =
+//     normalizeOptionalString(customOrientation);
+
+//   const normalizedCustomReligion = normalizeOptionalString(customReligion);
+
+//   // Gender description validation
+//   if (normalizedGenderDescription && normalizedGenderDescription.length > 200) {
+//     throw new ApiError(400, "Gender description cannot exceed 200 characters");
+//   }
+
+//   // Manual profession validation
+//   if (profession === "OTHER" && !normalizedCustomProfession) {
+//     throw new ApiError(400, "Custom profession is required");
+//   }
+
+//   if (normalizedCustomProfession && normalizedCustomProfession.length > 100) {
+//     throw new ApiError(400, "Custom profession cannot exceed 100 characters");
+//   }
+
+//   // Manual orientation validation
+//   if (orientation === "OTHER" && !normalizedCustomOrientation) {
+//     throw new ApiError(400, "Custom orientation is required");
+//   }
+
+//   // Manual religion validation
+//   if (religion === "OTHER" && !normalizedCustomReligion) {
+//     throw new ApiError(400, "Custom religion is required");
+//   }
+
+//   const normalizedData = {
+//     dateOfBirth: new Date(dateOfBirth),
+
+//     height: {
+//       value: heightValue,
+//       unit: heightUnit,
+//     },
+
+//     languages: normalizedLanguages,
+
+//     gender,
+
+//     genderDescription: normalizedGenderDescription,
+
+//     showGenderOnProfile: showGenderOnProfile ?? true,
+
+//     profession,
+
+//     customProfession:
+//       profession === "OTHER" ? normalizedCustomProfession : null,
+
+//     orientation,
+
+//     customOrientation:
+//       orientation === "OTHER" ? normalizedCustomOrientation : null,
+
+//     showOrientationOnProfile: showOrientationOnProfile ?? true,
+
+//     meetzoGoal,
+//     relationshipPace,
+
+//     smoking,
+//     drinking,
+//     fitness,
+//     pets,
+
+//     selfDescription: normalizedSelfDescription,
+
+//     interests: normalizedInterests,
+
+//     religion,
+
+//     customReligion: religion === "OTHER" ? normalizedCustomReligion : null,
+
+//     idealWeekend: normalizedIdealWeekend,
+
+//     values: normalizedValues,
+
+//     isProfileCompleted: true,
+//     completedAt: new Date(),
+//   };
+
+//   // Create a new profile or update existing profile
+//   const profile = await profileModel.findOneAndUpdate(
+//     {
+//       userId,
+//     },
+//     {
+//       $set: normalizedData,
+
+//       $setOnInsert: {
+//         userId,
+//       },
+//     },
+//     {
+//       returnDocument: "after",
+//       runValidators: true,
+//       upsert: true,
+//       setDefaultsOnInsert: true,
+//     },
+//   );
+
+//   return profile;
+// };
+
+
 export const saveProfileDetailsService = async ({
   userId,
   profileData = {},
 }) => {
-  // Authentication validation
   if (!userId) {
     throw new ApiError(401, "Authentication is required");
   }
 
-  // Check whether user exists
-  const user = await userModel.findById(userId).select("_id isBlocked");
+  const user = await userModel
+    .findById(userId)
+    .select("_id isBlocked");
 
   if (!user) {
     throw new ApiError(404, "User not found");
@@ -142,7 +394,6 @@ export const saveProfileDetailsService = async ({
     values,
   } = profileData;
 
-  // Basic required-field validation
   const requiredFields = {
     dateOfBirth,
     height,
@@ -168,23 +419,34 @@ export const saveProfileDetailsService = async ({
       value === undefined ||
       value === null ||
       value === "" ||
-      (Array.isArray(value) && value.length === 0),
+      (Array.isArray(value) && value.length === 0)
   );
 
   if (missingField) {
-    throw new ApiError(400, `${missingField[0]} is required`);
+    throw new ApiError(
+      400,
+      `${missingField[0]} is required`
+    );
   }
 
-  // Date-of-birth and age validation
   const age = calculateAge(dateOfBirth);
 
   if (age < 18) {
-    throw new ApiError(400, "You must be at least 18 years old");
+    throw new ApiError(
+      400,
+      "You must be at least 18 years old"
+    );
   }
 
-  // Height object validation
-  if (typeof height !== "object" || height === null || Array.isArray(height)) {
-    throw new ApiError(400, "Height must contain value and unit");
+  if (
+    typeof height !== "object" ||
+    height === null ||
+    Array.isArray(height)
+  ) {
+    throw new ApiError(
+      400,
+      "Height must contain value and unit"
+    );
   }
 
   const heightValue = Number(height.value);
@@ -198,74 +460,131 @@ export const saveProfileDetailsService = async ({
     heightValue <= 0 ||
     !["CM", "FT", "IN"].includes(heightUnit)
   ) {
-    throw new ApiError(400, "Valid height value and unit are required");
+    throw new ApiError(
+      400,
+      "Valid height value and unit are required"
+    );
   }
 
-  // Normalize array fields
-  const normalizedLanguages = normalizeArray(languages);
+  const normalizedLanguages =
+    normalizeArray(languages);
 
-  const normalizedSelfDescription = normalizeArray(selfDescription);
+  const normalizedSelfDescription =
+    normalizeArray(selfDescription);
 
-  const normalizedInterests = normalizeArray(interests);
+  const normalizedInterests =
+    normalizeArray(interests);
 
-  const normalizedIdealWeekend = normalizeArray(idealWeekend);
+  const normalizedIdealWeekend =
+    normalizeArray(idealWeekend);
 
-  const normalizedValues = normalizeArray(values);
+  const normalizedValues =
+    normalizeArray(values);
 
-  // Validate arrays
   if (normalizedLanguages.length === 0) {
-    throw new ApiError(400, "At least one language is required");
+    throw new ApiError(
+      400,
+      "At least one language is required"
+    );
   }
 
   if (normalizedSelfDescription.length < 1) {
-    throw new ApiError(400, "Select more than 1 personality traits");
+    throw new ApiError(
+      400,
+      "Select at least one personality trait"
+    );
   }
 
-  if (normalizedInterests.length < 1 || normalizedInterests.length > 6) {
-    throw new ApiError(400, "Select between 1 and 6 interests");
+  if (
+    normalizedInterests.length < 1 ||
+    normalizedInterests.length > 6
+  ) {
+    throw new ApiError(
+      400,
+      "Select between 1 and 6 interests"
+    );
   }
 
-  if (normalizedIdealWeekend.length < 1 || normalizedIdealWeekend.length > 6) {
-    throw new ApiError(400, "Select between 1 and 6 weekend preferences");
+  if (
+    normalizedIdealWeekend.length < 1 ||
+    normalizedIdealWeekend.length > 6
+  ) {
+    throw new ApiError(
+      400,
+      "Select between 1 and 6 weekend preferences"
+    );
   }
 
-  if (normalizedValues.length < 1 || normalizedValues.length > 6) {
-    throw new ApiError(400, "Select between 1 and 6 values");
+  if (
+    normalizedValues.length < 1 ||
+    normalizedValues.length > 6
+  ) {
+    throw new ApiError(
+      400,
+      "Select between 1 and 6 values"
+    );
   }
 
-  // Normalize optional/manual fields
   const normalizedGenderDescription =
     normalizeOptionalString(genderDescription);
 
-  const normalizedCustomProfession = normalizeOptionalString(customProfession);
+  const normalizedCustomProfession =
+    normalizeOptionalString(customProfession);
 
   const normalizedCustomOrientation =
     normalizeOptionalString(customOrientation);
 
-  const normalizedCustomReligion = normalizeOptionalString(customReligion);
+  const normalizedCustomReligion =
+    normalizeOptionalString(customReligion);
 
-  // Gender description validation
-  if (normalizedGenderDescription && normalizedGenderDescription.length > 200) {
-    throw new ApiError(400, "Gender description cannot exceed 200 characters");
+  if (
+    normalizedGenderDescription &&
+    normalizedGenderDescription.length > 200
+  ) {
+    throw new ApiError(
+      400,
+      "Gender description cannot exceed 200 characters"
+    );
   }
 
-  // Manual profession validation
-  if (profession === "OTHER" && !normalizedCustomProfession) {
-    throw new ApiError(400, "Custom profession is required");
+  if (
+    profession === "OTHER" &&
+    !normalizedCustomProfession
+  ) {
+    throw new ApiError(
+      400,
+      "Custom profession is required"
+    );
   }
 
-  if (normalizedCustomProfession && normalizedCustomProfession.length > 100) {
-    throw new ApiError(400, "Custom profession cannot exceed 100 characters");
+  if (
+    normalizedCustomProfession &&
+    normalizedCustomProfession.length > 100
+  ) {
+    throw new ApiError(
+      400,
+      "Custom profession cannot exceed 100 characters"
+    );
   }
 
-  // Manual orientation validation
-  if (orientation === "OTHER" && !normalizedCustomOrientation) {
-    throw new ApiError(400, "Custom orientation is required");
+  if (
+    orientation === "OTHER" &&
+    !normalizedCustomOrientation
+  ) {
+    throw new ApiError(
+      400,
+      "Custom orientation is required"
+    );
   }
 
-  // Manual religion validation
-  if (religion === "OTHER" && !normalizedCustomReligion) {
-    throw new ApiError(400, "Custom religion is required");
+  if (
+    religion === "OTHER" &&
+    !normalizedCustomReligion
+  ) {
+    throw new ApiError(
+      400,
+      "Custom religion is required"
+    );
   }
 
   const normalizedData = {
@@ -280,21 +599,28 @@ export const saveProfileDetailsService = async ({
 
     gender,
 
-    genderDescription: normalizedGenderDescription,
+    genderDescription:
+      normalizedGenderDescription,
 
-    showGenderOnProfile: showGenderOnProfile ?? true,
+    showGenderOnProfile:
+      showGenderOnProfile ?? true,
 
     profession,
 
     customProfession:
-      profession === "OTHER" ? normalizedCustomProfession : null,
+      profession === "OTHER"
+        ? normalizedCustomProfession
+        : null,
 
     orientation,
 
     customOrientation:
-      orientation === "OTHER" ? normalizedCustomOrientation : null,
+      orientation === "OTHER"
+        ? normalizedCustomOrientation
+        : null,
 
-    showOrientationOnProfile: showOrientationOnProfile ?? true,
+    showOrientationOnProfile:
+      showOrientationOnProfile ?? true,
 
     meetzoGoal,
     relationshipPace,
@@ -304,23 +630,29 @@ export const saveProfileDetailsService = async ({
     fitness,
     pets,
 
-    selfDescription: normalizedSelfDescription,
+    selfDescription:
+      normalizedSelfDescription,
 
-    interests: normalizedInterests,
+    interests:
+      normalizedInterests,
 
     religion,
 
-    customReligion: religion === "OTHER" ? normalizedCustomReligion : null,
+    customReligion:
+      religion === "OTHER"
+        ? normalizedCustomReligion
+        : null,
 
-    idealWeekend: normalizedIdealWeekend,
+    idealWeekend:
+      normalizedIdealWeekend,
 
-    values: normalizedValues,
+    values:
+      normalizedValues,
 
     isProfileCompleted: true,
     completedAt: new Date(),
   };
 
-  // Create a new profile or update existing profile
   const profile = await profileModel.findOneAndUpdate(
     {
       userId,
@@ -330,18 +662,21 @@ export const saveProfileDetailsService = async ({
 
       $setOnInsert: {
         userId,
+        location: null,
+        locationUpdatedAt: null,
       },
     },
     {
-      returnDocument: "after",
+      new: true,
       runValidators: true,
       upsert: true,
-      setDefaultsOnInsert: true,
-    },
+      setDefaultsOnInsert: false,
+    }
   );
 
   return profile;
 };
+
 
 export const getProfileService = async ({ userId }) => {
   if (!userId) {
@@ -976,10 +1311,7 @@ export const addProfilePhotosService = async ({
   privatePhotos = [],
 }) => {
   if (!userId) {
-    throw new ApiError(
-      401,
-      "Authentication required",
-    );
+    throw new ApiError(401, "Authentication required");
   }
 
   // =====================================
@@ -991,97 +1323,62 @@ export const addProfilePhotosService = async ({
   });
 
   if (!profile) {
-    throw new ApiError(
-      404,
-      "Please complete profile details first",
-    );
+    throw new ApiError(404, "Please complete profile details first");
   }
 
   // =====================================
   // EXISTING PHOTOS
   // =====================================
 
-  const existingPublicPhotos =
-    profile.photos.filter(
-      (photo) =>
-        photo.visibility === "PUBLIC",
-    );
+  const existingPublicPhotos = profile.photos.filter(
+    (photo) => photo.visibility === "PUBLIC",
+  );
 
-  const existingPrivatePhotos =
-    profile.photos.filter(
-      (photo) =>
-        photo.visibility === "PRIVATE",
-    );
+  const existingPrivatePhotos = profile.photos.filter(
+    (photo) => photo.visibility === "PRIVATE",
+  );
 
-  const existingPublicCount =
-    existingPublicPhotos.length;
+  const existingPublicCount = existingPublicPhotos.length;
 
-  const existingPrivateCount =
-    existingPrivatePhotos.length;
+  const existingPrivateCount = existingPrivatePhotos.length;
 
   // =====================================
   // NEW PHOTOS
   // =====================================
 
-  const newPublicCount =
-    publicPhotos.length;
+  const newPublicCount = publicPhotos.length;
 
-  const newPrivateCount =
-    privatePhotos.length;
+  const newPrivateCount = privatePhotos.length;
 
-  const hasPublicPhotos =
-    newPublicCount > 0;
+  const hasPublicPhotos = newPublicCount > 0;
 
-  const hasPrivatePhotos =
-    newPrivateCount > 0;
+  const hasPrivatePhotos = newPrivateCount > 0;
 
   // =====================================
   // TOTAL COUNTS
   // =====================================
 
-  const totalPublicCount =
-    existingPublicCount +
-    newPublicCount;
+  const totalPublicCount = existingPublicCount + newPublicCount;
 
-  const totalPrivateCount =
-    existingPrivateCount +
-    newPrivateCount;
+  const totalPrivateCount = existingPrivateCount + newPrivateCount;
 
   // =====================================
   // VALIDATIONS
   // =====================================
 
   // At least public or private photo required
-  if (
-    !hasPublicPhotos &&
-    !hasPrivatePhotos
-  ) {
-    throw new ApiError(
-      400,
-      "Please upload at least one photo",
-    );
+  if (!hasPublicPhotos && !hasPrivatePhotos) {
+    throw new ApiError(400, "Please upload at least one photo");
   }
 
   // Public photos minimum 2
-  if (
-    hasPublicPhotos &&
-    newPublicCount < 2
-  ) {
-    throw new ApiError(
-      400,
-      "Please upload at least 2 public photos",
-    );
+  if (hasPublicPhotos && newPublicCount < 2) {
+    throw new ApiError(400, "Please upload at least 2 public photos");
   }
 
   // Private photos minimum 1
-  if (
-    hasPrivatePhotos &&
-    newPrivateCount < 1
-  ) {
-    throw new ApiError(
-      400,
-      "Please upload at least 1 private photo",
-    );
+  if (hasPrivatePhotos && newPrivateCount < 1) {
+    throw new ApiError(400, "Please upload at least 1 private photo");
   }
 
   // Maximum 6 public photos
@@ -1111,126 +1408,88 @@ export const addProfilePhotosService = async ({
     // CHECK MAIN PUBLIC PHOTO
     // =====================================
 
-    const hasMainPhoto =
-      existingPublicPhotos.some(
-        (photo) => photo.isMain,
-      );
+    const hasMainPhoto = existingPublicPhotos.some((photo) => photo.isMain);
 
     // =====================================
     // UPLOAD PUBLIC PHOTOS
     // =====================================
 
-    const uploadedPublicPhotos =
-      await Promise.all(
-        publicPhotos.map(
-          async (file, index) => {
-            const uploaded =
-              await uploadPhotoToImageKit({
-                file,
-                folder:
-                  "/MeetZo/Profile_Photos/Public",
-              });
+    const uploadedPublicPhotos = await Promise.all(
+      publicPhotos.map(async (file, index) => {
+        const uploaded = await uploadPhotoToImageKit({
+          file,
+          folder: "/MeetZo/Profile_Photos/Public",
+        });
 
-            newlyUploadedFileIds.push(
-              uploaded.fileId,
-            );
+        newlyUploadedFileIds.push(uploaded.fileId);
 
-            return {
-              url: uploaded.url,
+        return {
+          url: uploaded.url,
 
-              fileId:
-                uploaded.fileId,
+          fileId: uploaded.fileId,
 
-              visibility:
-                "PUBLIC",
+          visibility: "PUBLIC",
 
-              // First public photo becomes
-              // main if no main photo exists
-              isMain:
-                !hasMainPhoto &&
-                index === 0,
+          // First public photo becomes
+          // main if no main photo exists
+          isMain: !hasMainPhoto && index === 0,
 
-              order:
-                existingPublicCount +
-                index +
-                1,
-            };
-          },
-        ),
-      );
+          order: existingPublicCount + index + 1,
+        };
+      }),
+    );
 
     // =====================================
     // UPLOAD PRIVATE PHOTOS
     // =====================================
 
-    const uploadedPrivatePhotos =
-      await Promise.all(
-        privatePhotos.map(
-          async (file, index) => {
-            const uploaded =
-              await uploadPhotoToImageKit({
-                file,
-                folder:
-                  "/MeetZo/Profile_Photos/Private",
-              });
+    const uploadedPrivatePhotos = await Promise.all(
+      privatePhotos.map(async (file, index) => {
+        const uploaded = await uploadPhotoToImageKit({
+          file,
+          folder: "/MeetZo/Profile_Photos/Private",
+        });
 
-            newlyUploadedFileIds.push(
-              uploaded.fileId,
-            );
+        newlyUploadedFileIds.push(uploaded.fileId);
 
-            return {
-              url: uploaded.url,
+        return {
+          url: uploaded.url,
 
-              fileId:
-                uploaded.fileId,
+          fileId: uploaded.fileId,
 
-              visibility:
-                "PRIVATE",
+          visibility: "PRIVATE",
 
-              // Private photo can never
-              // become main profile photo
-              isMain: false,
+          // Private photo can never
+          // become main profile photo
+          isMain: false,
 
-              order:
-                existingPrivateCount +
-                index +
-                1,
-            };
-          },
-        ),
-      );
+          order: existingPrivateCount + index + 1,
+        };
+      }),
+    );
 
     // =====================================
     // APPEND PHOTOS
     // =====================================
 
-    profile.photos.push(
-      ...uploadedPublicPhotos,
-      ...uploadedPrivatePhotos,
-    );
+    profile.photos.push(...uploadedPublicPhotos, ...uploadedPrivatePhotos);
 
     // =====================================
     // FIND MAIN PROFILE PHOTO
     // =====================================
 
-    const mainPhoto =
-      profile.photos.find(
-        (photo) =>
-          photo.visibility ===
-            "PUBLIC" &&
-          photo.isMain === true,
-      );
+    const mainPhoto = profile.photos.find(
+      (photo) => photo.visibility === "PUBLIC" && photo.isMain === true,
+    );
 
     // =====================================
     // UPDATE PROFILE IMAGE
     // =====================================
 
     if (mainPhoto) {
-      profile.profileImage =
-        mainPhoto.url;
+      profile.profileImage = mainPhoto.url;
 
-      profile.profileImageId =
-        mainPhoto.fileId;
+      profile.profileImageId = mainPhoto.fileId;
     }
 
     // =====================================
@@ -1243,58 +1502,38 @@ export const addProfilePhotosService = async ({
     // FINAL PUBLIC PHOTOS
     // =====================================
 
-    const finalPublicPhotos =
-      profile.photos.filter(
-        (photo) =>
-          photo.visibility === "PUBLIC",
-      );
+    const finalPublicPhotos = profile.photos.filter(
+      (photo) => photo.visibility === "PUBLIC",
+    );
 
     // =====================================
     // FINAL PRIVATE PHOTOS
     // =====================================
 
-    const finalPrivatePhotos =
-      profile.photos.filter(
-        (photo) =>
-          photo.visibility === "PRIVATE",
-      );
+    const finalPrivatePhotos = profile.photos.filter(
+      (photo) => photo.visibility === "PRIVATE",
+    );
 
     // =====================================
     // RESPONSE
     // =====================================
 
     return {
-      profileImage:
-        profile.profileImage,
+      profileImage: profile.profileImage,
 
-      profileImageId:
-        profile.profileImageId,
+      profileImageId: profile.profileImageId,
 
-      publicPhotos:
-        finalPublicPhotos,
+      publicPhotos: finalPublicPhotos,
 
-      privatePhotos:
-        finalPrivatePhotos,
+      privatePhotos: finalPrivatePhotos,
 
-      publicPhotoCount:
-        finalPublicPhotos.length,
+      publicPhotoCount: finalPublicPhotos.length,
 
-      privatePhotoCount:
-        finalPrivatePhotos.length,
+      privatePhotoCount: finalPrivatePhotos.length,
 
-      remainingPublicSlots:
-        Math.max(
-          0,
-          6 -
-            finalPublicPhotos.length,
-        ),
+      remainingPublicSlots: Math.max(0, 6 - finalPublicPhotos.length),
 
-      remainingPrivateSlots:
-        Math.max(
-          0,
-          6 -
-            finalPrivatePhotos.length,
-        ),
+      remainingPrivateSlots: Math.max(0, 6 - finalPrivatePhotos.length),
     };
   } catch (error) {
     // =====================================
@@ -1302,12 +1541,7 @@ export const addProfilePhotosService = async ({
     // =====================================
 
     await Promise.allSettled(
-      newlyUploadedFileIds.map(
-        (fileId) =>
-          deletePhotoFromImageKit(
-            fileId,
-          ),
-      ),
+      newlyUploadedFileIds.map((fileId) => deletePhotoFromImageKit(fileId)),
     );
 
     throw error;
@@ -1472,9 +1706,6 @@ export const getMyProfilePhotosService = async ({ userId }) => {
 // UPDATE ABOUT ME SERVICE
 // =====================================
 
-
-
-
 export const deleteProfilePhotoService = async ({ userId, fieldId }) => {
   if (!userId) {
     throw new ApiError(401, "Authentication required");
@@ -1631,9 +1862,6 @@ export const updateAboutMeService = async ({
   };
 };
 
-
-
-
 export const updateUserLocationService = async ({
   userId,
   latitude,
@@ -1647,24 +1875,15 @@ export const updateUserLocationService = async ({
   const lng = Number(longitude);
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    throw new ApiError(
-      400,
-      "Valid latitude and longitude are required"
-    );
+    throw new ApiError(400, "Valid latitude and longitude are required");
   }
 
   if (lat < -90 || lat > 90) {
-    throw new ApiError(
-      400,
-      "Latitude must be between -90 and 90"
-    );
+    throw new ApiError(400, "Latitude must be between -90 and 90");
   }
 
   if (lng < -180 || lng > 180) {
-    throw new ApiError(
-      400,
-      "Longitude must be between -180 and 180"
-    );
+    throw new ApiError(400, "Longitude must be between -180 and 180");
   }
 
   const profile = await profileModel.findOneAndUpdate(
@@ -1687,7 +1906,7 @@ export const updateUserLocationService = async ({
     {
       new: true,
       runValidators: true,
-    }
+    },
   );
 
   if (!profile) {
@@ -1699,4 +1918,3 @@ export const updateUserLocationService = async ({
     locationUpdatedAt: profile.locationUpdatedAt,
   };
 };
-
