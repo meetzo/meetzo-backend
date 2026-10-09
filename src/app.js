@@ -8,6 +8,7 @@ import matchRoutes from "./module/matches/matches.routes.js";
 import multer from "multer";
 import likeRoute from "./module/likes/likes.routes.js";
 import chatRoutes from "./module/chat/chat.routes.js";
+import discoveryRoutes  from "./module/discovery/discovery.routes.js"
 import "dotenv/config";
 const app = express();
 
@@ -33,6 +34,7 @@ app.use("/api/exclusive-applications", exclusiveApplicationRoutes);
 app.use("/api/like", likeRoute);
 app.use("/api/match", matchRoutes)
 app.use("/api/chat", chatRoutes);
+app.use("/api/discovery", discoveryRoutes);
 
 
 

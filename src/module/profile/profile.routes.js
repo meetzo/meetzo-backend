@@ -11,6 +11,7 @@ import {
   updateAboutMe,
   getMyProfilePhotos,
   deleteProfilePhoto,
+  updateUserLocationController
 } from "./profile.controller.js";
 
 import { uploadProfilePicture } from "../../middleware/upload.middleware.js";
@@ -101,6 +102,10 @@ router.delete(
 // =====================================
 
 router.post("/about-me", isAuthenticated, updateAboutMe);
+
+//PATCH /api/profile/update_location
+router.patch("/update_location", isAuthenticated,updateUserLocationController )
+
 
 
 export default router;

@@ -12,7 +12,21 @@ import {
   updateAboutMeService,
   getMyProfilePhotosService,
   deleteProfilePhotoService,
+  updateUserLocationService,
 } from "./profile.service.js";
+
+// export const saveProfileDetailsController = asyncHandler(async (req, res) => {
+//   const profile = await saveProfileDetailsService({
+//     userId: req.user?._id || req.user?.id,
+//     profileData: req.body || {},
+//   });
+
+//   return res.status(201).json({
+//     success: true,
+//     message: "Profile details saved successfully",
+//     data: profile,
+//   });
+// });
 
 export const saveProfileDetailsController = asyncHandler(async (req, res) => {
   const profile = await saveProfileDetailsService({
@@ -26,6 +40,7 @@ export const saveProfileDetailsController = asyncHandler(async (req, res) => {
     data: profile,
   });
 });
+
 
 export const getProfileController = asyncHandler(async (req, res) => {
   const data = await getProfileService({
@@ -244,3 +259,34 @@ export const deleteProfilePhoto = asyncHandler(async (req, res) => {
     data: result,
   });
 });
+
+export const updateUserLocationController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const userId = req.user._id;
+
+    const {
+      latitude,
+      longitude,
+    } = req.body;
+
+    const result =
+      await updateUserLocationService({
+        userId,
+        latitude,
+        longitude,
+      });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Location updated successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
