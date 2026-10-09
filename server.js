@@ -49,7 +49,7 @@ const PORT = process.env.PORT || 5001;
 */
 
 app.get("/", (req, res) => {
-  return res.send("Meetzo server is up and running");
+  return res.send("🚀🚀 Meetzo server is up and running");
 });
 
 /*
