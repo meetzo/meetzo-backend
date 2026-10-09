@@ -10,6 +10,7 @@ import likeRoute from "./module/likes/likes.routes.js";
 import chatRoutes from "./module/chat/chat.routes.js";
 import discoveryRoutes  from "./module/discovery/discovery.routes.js"
 import "dotenv/config";
+
 const app = express();
 
 app.use(express.json());
@@ -22,7 +23,7 @@ app.get("/test", (req, res) => {
   console.log("✅ TEST ROUTE HIT");
   return res.status(200).json({
     success: true,
-    message: "App is working",
+    message: "Meetzo App is working",
   });
 });
 
