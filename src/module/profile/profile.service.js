@@ -802,6 +802,7 @@ export const getProfileService = async ({ userId }) => {
 
     profile: {
       ...profile,
+       bio: profile.bio?.trim() || "null",
 
       photos: [
         ...publicPhotos,
