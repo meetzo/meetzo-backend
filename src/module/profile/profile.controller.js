@@ -260,30 +260,55 @@ export const deleteProfilePhoto = asyncHandler(async (req, res) => {
   });
 });
 
+
+// export const updateUserLocationController = async (
+//   req,
+//   res,
+//   next
+// ) => {
+//   try {
+//     const userId = req.user._id;
+
+//     const {
+//       latitude,
+//       longitude,
+//     } = req.body;
+
+//     const result =
+//       await updateUserLocationService({
+//         userId,
+//         latitude,
+//         longitude,
+//       });
+
+//     return res.status(200).json({
+//       success: true,
+//       message:
+//         "Location updated successfully",
+//       data: result,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+
+
 export const updateUserLocationController = async (
   req,
   res,
   next
 ) => {
   try {
-    const userId = req.user._id;
-
-    const {
-      latitude,
-      longitude,
-    } = req.body;
-
-    const result =
-      await updateUserLocationService({
-        userId,
-        latitude,
-        longitude,
-      });
+    const result = await updateUserLocationService({
+      userId: req.user?._id || req.user?.id,
+      latitude: req.body.latitude,
+      longitude: req.body.longitude,
+    });
 
     return res.status(200).json({
       success: true,
-      message:
-        "Location updated successfully",
+      message: "Location updated successfully",
       data: result,
     });
   } catch (error) {

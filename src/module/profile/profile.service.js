@@ -1862,41 +1862,210 @@ export const updateAboutMeService = async ({
   };
 };
 
+// export const updateUserLocationService = async ({
+//   userId,
+//   latitude,
+//   longitude,
+// }) => {
+//   if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+//     throw new ApiError(400, "Invalid user id");
+//   }
+
+//   const lat = Number(latitude);
+//   const lng = Number(longitude);
+
+//   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+//     throw new ApiError(400, "Valid latitude and longitude are required");
+//   }
+
+//   if (lat < -90 || lat > 90) {
+//     throw new ApiError(400, "Latitude must be between -90 and 90");
+//   }
+
+//   if (lng < -180 || lng > 180) {
+//     throw new ApiError(400, "Longitude must be between -180 and 180");
+//   }
+
+//   const profile = await profileModel.findOneAndUpdate(
+//     {
+//       userId,
+//     },
+//     {
+//       $set: {
+//         location: {
+//           type: "Point",
+
+//           // IMPORTANT:
+//           // MongoDB GeoJSON = [longitude, latitude]
+//           coordinates: [lng, lat],
+//         },
+
+//         locationUpdatedAt: new Date(),
+//       },
+//     },
+//     {
+//       new: true,
+//       runValidators: true,
+//     },
+//   );
+
+//   if (!profile) {
+//     throw new ApiError(404, "Profile not found");
+//   }
+
+//   return {
+//     location: profile.location,
+//     locationUpdatedAt: profile.locationUpdatedAt,
+//   };
+// };
+
+
+
+
+
+const getPlaceDetails = async (lat, lng) => {
+  const emptyResult = {
+    placeName: null,
+    city: null,
+    state: null,
+    country: null,
+    fullAddress: null,
+  };
+
+  try {
+    const url = new URL(
+      "https://nominatim.openstreetmap.org/reverse"
+    );
+
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lon", String(lng));
+    url.searchParams.set("addressdetails", "1");
+    url.searchParams.set("zoom", "18");
+
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "MeetZoBackend/1.0 (contact: YOUR_REAL_EMAIL)",
+        "Accept-Language": "en",
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      console.error("Nominatim API Error:", {
+        status: response.status,
+        message: errorText,
+      });
+
+      return emptyResult;
+    }
+
+    const data = await response.json();
+
+    if (data.error) {
+      console.error("Nominatim Error:", data.error);
+      return emptyResult;
+    }
+
+    const address = data.address || {};
+
+    return {
+      placeName:
+        data.name ||
+        address.amenity ||
+        address.building ||
+        address.office ||
+        address.road ||
+        address.suburb ||
+        address.neighbourhood ||
+        null,
+
+      city:
+        address.city ||
+        address.town ||
+        address.municipality ||
+        address.village ||
+        address.county ||
+        null,
+
+      state: address.state || null,
+
+      country: address.country || null,
+
+      fullAddress: data.display_name || null,
+    };
+  } catch (error) {
+    console.error("Reverse Geocoding Failed:", error.message);
+
+    return emptyResult;
+  }
+};
+
+// ==========================================
+// UPDATE USER LOCATION SERVICE
+// ==========================================
+
 export const updateUserLocationService = async ({
   userId,
   latitude,
   longitude,
 }) => {
+  // Validate user ID
   if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
     throw new ApiError(400, "Invalid user id");
+  }
+
+  // Validate required coordinates
+  if (
+    latitude === undefined ||
+    latitude === null ||
+    latitude === "" ||
+    longitude === undefined ||
+    longitude === null ||
+    longitude === ""
+  ) {
+    throw new ApiError(
+      400,
+      "Latitude and longitude are required"
+    );
   }
 
   const lat = Number(latitude);
   const lng = Number(longitude);
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    throw new ApiError(400, "Valid latitude and longitude are required");
+    throw new ApiError(
+      400,
+      "Valid latitude and longitude are required"
+    );
   }
 
   if (lat < -90 || lat > 90) {
-    throw new ApiError(400, "Latitude must be between -90 and 90");
+    throw new ApiError(
+      400,
+      "Latitude must be between -90 and 90"
+    );
   }
 
   if (lng < -180 || lng > 180) {
-    throw new ApiError(400, "Longitude must be between -180 and 180");
+    throw new ApiError(
+      400,
+      "Longitude must be between -180 and 180"
+    );
   }
 
+  // ==========================================
+  // UPDATE PROFILE LOCATION
+  // ==========================================
+
   const profile = await profileModel.findOneAndUpdate(
-    {
-      userId,
-    },
+    { userId },
     {
       $set: {
         location: {
           type: "Point",
-
-          // IMPORTANT:
-          // MongoDB GeoJSON = [longitude, latitude]
           coordinates: [lng, lat],
         },
 
@@ -1906,15 +2075,36 @@ export const updateUserLocationService = async ({
     {
       new: true,
       runValidators: true,
-    },
+    }
   );
 
   if (!profile) {
     throw new ApiError(404, "Profile not found");
   }
 
+  // ==========================================
+  // GET ADDRESS DETAILS
+  // ==========================================
+
+  const placeDetails = await getPlaceDetails(lat, lng);
+
+  // ==========================================
+  // RETURN UPDATED LOCATION
+  // ==========================================
+
   return {
     location: profile.location,
+
     locationUpdatedAt: profile.locationUpdatedAt,
+
+    placeName: placeDetails.placeName,
+
+    city: placeDetails.city,
+
+    state: placeDetails.state,
+
+    country: placeDetails.country,
+
+    fullAddress: placeDetails.fullAddress,
   };
 };
