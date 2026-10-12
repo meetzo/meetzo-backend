@@ -678,14 +678,53 @@ export const saveProfileDetailsService = async ({
 };
 
 
+// export const getProfileService = async ({ userId }) => {
+//   if (!userId) {
+//     throw new ApiError(401, "Authentication is required");
+//   }
+
+//   const user = await userModel
+//     .findById(userId)
+//     .select("name email phone role isVerified isBlocked createdAt updatedAt")
+//     .lean();
+
+//   if (!user) {
+//     throw new ApiError(404, "User not found");
+//   }
+
+//   if (user.isBlocked) {
+//     throw new ApiError(403, "Your account has been blocked");
+//   }
+
+//   const profile = await profileModel.findOne({ userId }).lean();
+
+//   if (!profile) {
+//     throw new ApiError(404, "Profile not found");
+//   }
+
+//   return {
+//     user,
+//     profile,
+//   };
+// };
+
+
+
+
 export const getProfileService = async ({ userId }) => {
+  // ==========================================
+  // 1. VALIDATE USER
+  // ==========================================
+
   if (!userId) {
     throw new ApiError(401, "Authentication is required");
   }
 
   const user = await userModel
     .findById(userId)
-    .select("name email phone role isVerified isBlocked createdAt updatedAt")
+    .select(
+      "name email phone role isVerified isBlocked createdAt updatedAt"
+    )
     .lean();
 
   if (!user) {
@@ -696,17 +735,98 @@ export const getProfileService = async ({ userId }) => {
     throw new ApiError(403, "Your account has been blocked");
   }
 
-  const profile = await profileModel.findOne({ userId }).lean();
+  // ==========================================
+  // 2. FETCH PROFILE
+  // ==========================================
+
+  const profile = await profileModel
+    .findOne({ userId })
+    .lean();
 
   if (!profile) {
     throw new ApiError(404, "Profile not found");
   }
 
+  // ==========================================
+  // 3. NORMALIZE PHOTOS
+  // ==========================================
+
+  const photos = Array.isArray(profile.photos)
+    ? profile.photos
+    : [];
+
+  const publicPhotos = photos
+    .filter((photo) => photo.visibility === "PUBLIC")
+    .sort((a, b) => a.order - b.order);
+
+  const privatePhotos = photos
+    .filter((photo) => photo.visibility === "PRIVATE")
+    .sort((a, b) => a.order - b.order);
+
+  // ==========================================
+  // 4. PHOTO STATISTICS
+  // ==========================================
+
+  const totalPhotos = photos.length;
+  const totalPublicPhotos = publicPhotos.length;
+  const totalPrivatePhotos = privatePhotos.length;
+
+  const hasPhotos = totalPhotos > 0;
+
+  // Current MeetZo photo requirements
+  const minimumPublicPhotos = 2;
+  const minimumPrivatePhotos = 1;
+
+  const isPhotoRequirementCompleted =
+    totalPublicPhotos >= minimumPublicPhotos &&
+    totalPrivatePhotos >= minimumPrivatePhotos;
+
+  // ==========================================
+  // 5. MAIN PROFILE IMAGE
+  // ==========================================
+
+  const mainPhoto =
+    publicPhotos.find((photo) => photo.isMain) ||
+    publicPhotos[0] ||
+    null;
+
+  const profileImage = mainPhoto?.url || null;
+  const profileImageId = mainPhoto?.fileId || null;
+
+  // ==========================================
+  // 6. RETURN RESPONSE
+  // ==========================================
+
   return {
     user,
-    profile,
+
+    profile: {
+      ...profile,
+
+      photos: [
+        ...publicPhotos,
+        ...privatePhotos,
+      ],
+
+      profileImage,
+      profileImageId,
+
+      photoStats: {
+        hasPhotos,
+        totalPhotos,
+        publicPhotos: totalPublicPhotos,
+        privatePhotos: totalPrivatePhotos,
+
+        minimumPublicPhotos,
+        minimumPrivatePhotos,
+
+        isPhotoRequirementCompleted,
+      },
+    },
   };
 };
+
+
 
 export const updateProfileService = async ({ userId, profileData = {} }) => {
   // ---------------------------------------

@@ -292,8 +292,6 @@ export const deleteProfilePhoto = asyncHandler(async (req, res) => {
 //   }
 // };
 
-
-
 export const updateUserLocationController = async (
   req,
   res,
