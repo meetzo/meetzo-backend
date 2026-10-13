@@ -23,7 +23,8 @@ import ApiError from "../../utils/api.error.js";
 export const accessChatController = async (req, res, next) => {
   try {
     const data = await accessChatService({ userId: req.user._id, targetUserId: req.body?.targetUserId });
-    res.status(200).json({ success: true, message: "Chat accessed successfully", data });
+    res.status(200).json({ success: true, message: "Chat created successfully", data });
+    console.log(data);
   } catch (error) { next(error); }
 };
 
