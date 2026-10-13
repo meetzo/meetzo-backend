@@ -5,6 +5,7 @@ import ChatModel from "../../models/chatModel.js";
 import MessageModel from "../../models/messageModel.js";
 import LikeModel from "../../models/like.Model.js";
 import UserModel from "../../models/userModel.js";
+import {encrypt, decrypt} from "../../utils/encryption.js";
 
 const validId = (value) => mongoose.Types.ObjectId.isValid(value);
 // Normalize IDs before comparing them or building a pair key: uppercase and
@@ -93,7 +94,7 @@ const publicChat = async (chat, userId) => {
     isArchived: state?.isArchived || false,
     lastReadMessageId: state?.lastReadMessageId || null,
     lastReadAt: state?.lastReadAt || null,
-    lastMessage,
+    lastMessage: toClientMessage(lastMessage),
     lastMessageAt: lastMessage?.createdAt || null,
     createdAt: chat.createdAt,
     updatedAt: chat.updatedAt,
@@ -174,7 +175,7 @@ export const getChatMessagesService = async ({ chatId, userId, page, limit }) =>
       .skip((p - 1) * l).limit(l).lean(),
     MessageModel.countDocuments(filter),
   ]);
-  return { messages: messages.reverse(), pagination: pagination(p, l, total) };
+  return { messages: messages.reverse().map(toClientMessage), pagination: pagination(p, l, total) };
 };
 
 const checkText = (message, clientMessageId) => {
@@ -242,13 +243,14 @@ const persistMessage = async ({ chatId, senderId, clientMessageId, message, mess
     if (idString(existing.chatId) !== idString(chatId)) {
       throw fail("clientMessageId has already been used in another chat", 409);
     }
-    return { message: existing, created: false };
+    return { message: toClientMessage(existing), created: false };
   }
   let saved;
   try {
     const input = {
       chatId, senderId, receiverId: otherId(chat, senderId),
-      clientMessageId: cleanId, message: message?.trim() || "",
+      //message encryption
+      clientMessageId: cleanId, message: encryptText(message?.trim()),
       messageType, media: media ?? null, status: "SENT",
     };
     saved = session ? (await MessageModel.create([input], { session }))[0]
@@ -260,10 +262,10 @@ const persistMessage = async ({ chatId, senderId, clientMessageId, message, mess
     if (!duplicate || idString(duplicate.chatId) !== idString(chatId)) {
       throw fail("clientMessageId has already been used in another chat", 409);
     }
-    return { message: duplicate, created: false };
+    return { message: toClientMessage(duplicate), created: false };
   }
   await updateChatAfterSend(chat, senderId, saved.receiverId, saved, session);
-  return { message: saved, created: true };
+  return { message: toClientMessage(saved), created: true };
 };
 
 export const sendTextMessageService = async ({ chatId, senderId, clientMessageId, message }) => {
@@ -418,11 +420,11 @@ export const editMessageService = async ({ messageId, userId, message }) => {
     { _id: messageId, senderId: userId, deletedFor: { $ne: userId },
       isDeletedForEveryone: false, messageType: "TEXT",
       createdAt: { $gte: new Date(Date.now() - windowMs) } },
-    { $set: { message: message.trim(), isEdited: true, editedAt: new Date() } },
+    { $set: { message: encryptText(message.trim()), isEdited: true, editedAt: new Date() } },
     { new: true, runValidators: true },
   );
   if (!updated) throw fail("Message can no longer be edited", 409);
-  return updated;
+  return toClientMessage(updated);
 };
 
 // For everyone: replace content with a tombstone (sender only, 15 minutes).
@@ -478,4 +480,25 @@ export const deleteMessageService = async ({ messageId, userId, deleteForEveryon
   } finally {
     await session.endSession();
   }
+};
+
+//encryption and decryption of message
+// Empty strings (media messages, delete-for-everyone tombstones) stay empty.
+const encryptText = (text) => (text ? encrypt(text) : "");
+
+// One bad record (wrong key, tampered value) must not break the whole chat list.
+const safeDecrypt = (text) => {
+  try {
+    return decrypt(text);
+  } catch (error) {
+    console.error("Message decryption failed:", error.message);
+    return "";
+  }
+};
+
+// Convert a message (Mongoose doc or lean object) into what clients receive.
+const toClientMessage = (msg) => {
+  if (!msg) return msg;
+  const obj = typeof msg.toObject === "function" ? msg.toObject() : { ...msg };
+  return { ...obj, message: safeDecrypt(obj.message) };
 };
