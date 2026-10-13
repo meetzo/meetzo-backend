@@ -1506,9 +1506,9 @@ const profileSchema = new mongoose.Schema(
 
       validate: {
         validator: (value) =>
-          Array.isArray(value) && value.length >= 1 && value.length <= 6,
+          Array.isArray(value) && value.length >= 1,
 
-        message: "Select between 1 and 6 interests",
+        message: "Select at least one value",
       },
     },
 
@@ -1561,7 +1561,7 @@ const profileSchema = new mongoose.Schema(
       validate: {
         validator: (value) => Array.isArray(value) && value.length >= 1,
 
-        message: "Select between 1 and 6 values",
+        message: "Select more than 1 value",
       },
     },
 

@@ -496,32 +496,32 @@ export const saveProfileDetailsService = async ({
   }
 
   if (
-    normalizedInterests.length < 1 ||
-    normalizedInterests.length > 6
+    normalizedInterests.length < 1 
+  
   ) {
     throw new ApiError(
       400,
-      "Select between 1 and 6 interests"
+      "Select at least 1 intrest"
     );
   }
 
   if (
-    normalizedIdealWeekend.length < 1 ||
-    normalizedIdealWeekend.length > 6
+    normalizedIdealWeekend.length < 1 
+    
   ) {
     throw new ApiError(
       400,
-      "Select between 1 and 6 weekend preferences"
+      "Select at least 1 weekend preference"
     );
   }
 
   if (
-    normalizedValues.length < 1 ||
-    normalizedValues.length > 6
+    normalizedValues.length < 1
+    
   ) {
     throw new ApiError(
       400,
-      "Select between 1 and 6 values"
+      "Select at least 1 value"
     );
   }
 
@@ -987,26 +987,26 @@ export const updateProfileService = async ({ userId, profileData = {} }) => {
 
     selfDescription: {
       min: 1,
-      max: 3,
+      max: Infinity,
       message: "Select between 1 and 3 personality traits",
     },
 
     interests: {
       min: 1,
-      max: 5,
-      message: "Select between 1 and 5 interests",
+    
+      message: "Select atleast one interest",
     },
 
     idealWeekend: {
       min: 1,
-      max: 3,
-      message: "Select between 1 and 3 weekend preferences",
+      max: Infinity,
+      message: "select atleast one weekend preference",
     },
 
     values: {
       min: 1,
-      max: 3,
-      message: "Select between 1 and 3 values",
+      max: Infinity,
+      message: "Select at least one value",
     },
   };
 
