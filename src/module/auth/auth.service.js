@@ -12,6 +12,9 @@ import ApiError from "../../utils/api.error.js";
 import { generateOtp } from "../../utils/generate.otp.js";
 import { sendOtpEmail } from "../../utils/sendEmail.js";
 import jwt from "jsonwebtoken";
+import crypto from "node:crypto";
+import BlacklistedToken from "../../models/blacklistedTokenModel.js";
+
 
 // Helper function for safe user response
 const sanitizeUser = (user) => {
@@ -1993,3 +1996,91 @@ export const verifyMobileOtpService = async ({ phone, otp }) => {
     },
   };
 };
+
+
+
+
+
+//logout api and helper fxn
+
+
+
+
+
+const createError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+export const getTokenHash = (token) => {
+  return crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+};
+
+export const isTokenBlacklisted = async (token) => {
+  const tokenHash = getTokenHash(token);
+
+  const existingToken = await BlacklistedToken.exists({
+    tokenHash,
+  });
+
+  return Boolean(existingToken);
+};
+
+export const logoutService = async ({
+  userId,
+  token,
+}) => {
+  if (!userId || !token) {
+    throw createError(
+      401,
+      "Authentication is required"
+    );
+  }
+
+  const decoded = jwt.decode(token);
+
+  if (
+    !decoded ||
+    typeof decoded.exp !== "number"
+  ) {
+    throw createError(
+      400,
+      "Token expiration is missing"
+    );
+  }
+
+  const expiresAt = new Date(
+    decoded.exp * 1000
+  );
+
+  if (expiresAt.getTime() <= Date.now()) {
+    throw createError(
+      401,
+      "Token has already expired"
+    );
+  }
+
+  const tokenHash = getTokenHash(token);
+
+  await BlacklistedToken.updateOne(
+    { tokenHash },
+    {
+      $setOnInsert: {
+        tokenHash,
+        userId,
+        expiresAt,
+      },
+    },
+    { upsert: true }
+  );
+
+  return {
+    success: true,
+    message: "Logged out successfully",
+  };
+};
+

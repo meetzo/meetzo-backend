@@ -9,7 +9,8 @@ import {
   googleAuthController,
   appleLogin,
   mobileLoginController,
-  verifyMobileOtpController
+  verifyMobileOtpController,
+  logout
 
 } from "./auth.controller.js";
 
@@ -27,6 +28,8 @@ router.post("/verify_email", verifyEmailLoginOtp);
 
 router.post("/create-password", isAuthenticated, createPassword);
 
+router.post("/logout",isAuthenticated,logout);
+
 //sso routes
 
 router.post("/google_login", googleAuthController);
@@ -36,6 +39,8 @@ router.post("/apple_login", appleLogin);
 
 router.post("/mobile_login", mobileLoginController);
 router.post("/verify_mobile_otp", verifyMobileOtpController);
+
+
 
 
 export default router;

@@ -12,6 +12,7 @@ import {
   appleLoginService,
   mobileLoginService,
   verifyMobileOtpService,
+  logoutService,
 
 } from "./auth.service.js";
 
@@ -248,3 +249,37 @@ export const verifyMobileOtpController = async (req, res, next) => {
     next(error);
   }
 };
+
+
+
+
+
+
+
+export const logout = async (req, res, next) => {
+  try {
+    const authorization = req.headers.authorization;
+
+    const token = authorization?.startsWith("Bearer ")
+      ? authorization.slice(7).trim()
+      : null;
+
+    const userId = req.user?._id || req.user?.id;
+
+    if (!token || !userId) {
+      const error = new Error("Authentication is required");
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const result = await logoutService({
+      userId,
+      token,
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
