@@ -1201,7 +1201,7 @@ import AadhaarVerification from "../../models/aadharVerificationModel.js";
 import User from "../../models/userModel.js";
 import Profile from "../../models/profileModel.js";
 
-const SESSION_RETRY_MS = 15 * 60 * 1000;
+const SESSION_RETRY_MS = 5 * 60 * 1000;
 
 const createError = (statusCode, message) => {
   const error = new Error(message);
