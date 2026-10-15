@@ -526,7 +526,7 @@ import AadhaarVerification from "../../models/aadharVerificationModel.js";
 import User from "../../models/userModel.js";
 import Profile from "../../models/profileModel.js";
 
-const SESSION_RETRY_MS = 5 * 60 * 1000;
+const SESSION_RETRY_MS = 15 * 60 * 1000;
 
 const createError = (statusCode, message) => {
   const error = new Error(message);
@@ -546,19 +546,110 @@ export const getIdsPayErrorMessage = (error) => {
   );
 };
 
-const getLatestVerification = async (userId, session = null) => {
-  let query = AadhaarVerification.findOne({
-    userId,
-  }).sort({
-    createdAt: -1,
-    _id: -1,
-  });
-
-  if (session) {
-    query = query.session(session);
+const getSafeStatus = (value) => {
+  if (typeof value === "boolean" || typeof value === "number") {
+    return value;
   }
 
-  return query;
+  if (typeof value === "string") {
+    return value.length <= 40 ? value : "[REDACTED]";
+  }
+
+  return undefined;
+};
+
+const getSafeStatusDetails = (value) => {
+  if (!value || typeof value !== "object") {
+    return {
+      type: typeof value,
+      value: getSafeStatus(value),
+    };
+  }
+
+  return {
+    type: Array.isArray(value) ? "array" : "object",
+    keys: Object.keys(value),
+
+    code: getSafeStatus(value.code),
+    status: getSafeStatus(value.status),
+    success: getSafeStatus(value.success),
+    verified: getSafeStatus(value.verified),
+    statusCode: getSafeStatus(value.status_code),
+    messageCode: getSafeStatus(value.message_code),
+  };
+};
+
+const confirmProviderVerification = (providerResult, clientId) => {
+  if (!providerResult || typeof providerResult !== "object") {
+    throw createError(
+      502,
+      "Invalid response received from IDSPay"
+    );
+  }
+
+  const {
+    success,
+    status,
+    status_code,
+    message_code,
+    data,
+  } = providerResult;
+
+  if (
+    success !== true ||
+    status?.code !== 200 ||
+    status_code !== 200 ||
+    message_code !== "success"
+  ) {
+    throw createError(
+      409,
+      "IDSPay verification was not successful"
+    );
+  }
+
+  if (
+    !data ||
+    String(data.client_id) !== String(clientId)
+  ) {
+    throw createError(
+      409,
+      "DigiLocker verification session mismatch"
+    );
+  }
+
+  if (
+    !data.aadhaar_xml_data ||
+    !data.aadhaar_xml_data.full_name ||
+    !data.aadhaar_xml_data.dob
+  ) {
+    throw createError(
+      422,
+      "Verified Aadhaar details are not available"
+    );
+  }
+
+  return true;
+};
+
+const extractVerifiedDetails = (providerResult) => {
+  const aadhaarData = providerResult?.data?.aadhaar_xml_data;
+
+  if (
+    !aadhaarData ||
+    typeof aadhaarData.full_name !== "string" ||
+    !aadhaarData.full_name.trim() ||
+    typeof aadhaarData.dob !== "string" ||
+    !aadhaarData.dob.trim()
+  ) {
+    throw createError(422, "Verified Aadhaar details are not available");
+  }
+
+  return {
+    fullName: aadhaarData.full_name.trim(),
+    gender: aadhaarData.gender || null,
+    dob: aadhaarData.dob.trim(),
+    state: aadhaarData.address?.state || null,
+  };
 };
 
 const parseAadhaarDob = (dob) => {
@@ -620,73 +711,22 @@ const parseAadhaarDob = (dob) => {
   return date;
 };
 
-const extractVerifiedDetails = (providerResult) => {
-  const aadhaarData = providerResult?.data?.aadhaar_xml_data;
-
-  if (
-    !aadhaarData ||
-    typeof aadhaarData.full_name !== "string" ||
-    !aadhaarData.full_name.trim() ||
-    typeof aadhaarData.dob !== "string" ||
-    !aadhaarData.dob.trim()
-  ) {
-    throw createError(422, "Verified Aadhaar details are not available");
-  }
-
-  return {
-    fullName: aadhaarData.full_name.trim(),
-    gender: aadhaarData.gender || null,
-    dob: aadhaarData.dob.trim(),
-    state: aadhaarData.address?.state || null,
-  };
-};
-
-const confirmProviderVerification = (providerResult) => {
-  const safeValue = (value) =>
-    typeof value === "boolean" ||
-    typeof value === "number" ||
-    (typeof value === "string" && value.length <= 32)
-      ? value
-      : undefined;
-
-  console.log("[KYC] Provider verification diagnostics:", {
-    responseKeys: Object.keys(providerResult || {}),
-    dataKeys: Object.keys(providerResult?.data || {}),
-
-    success: safeValue(providerResult?.success),
-    status: safeValue(providerResult?.status),
-
-    dataSuccess: safeValue(providerResult?.data?.success),
-
-    dataStatus: safeValue(providerResult?.data?.status),
-
-    verificationStatus: safeValue(providerResult?.data?.verification_status),
-
-    hasAadhaarXml: Boolean(providerResult?.data?.aadhaar_xml_data),
+const getLatestVerification = async (userId, session = null) => {
+  let query = AadhaarVerification.findOne({
+    userId,
+  }).sort({
+    createdAt: -1,
+    _id: -1,
   });
 
-  if (!providerResult?.data) {
-    throw createError(502, "Invalid response received from IDSPay");
+  if (session) {
+    query = query.session(session);
   }
 
-  // IMPORTANT:
-  // The successful IDSPay fetchDetails response
-  // has not yet been established.
-  //
-  // Replace this guard with the documented
-  // completed-verification condition once the
-  // debug output is reviewed.
-  //
-  // Never use callback status or XML presence
-  // alone to approve KYC.
-
-  throw createError(
-    503,
-    "IDSPay verification success validation is not configured",
-  );
+  return query;
 };
 
-const buildVerifiedResponse = (verification, profile) => ({
+const getVerifiedResponse = (verification, profile) => ({
   verificationId: verification._id,
 
   status: "VERIFIED",
@@ -718,8 +758,6 @@ export const generateAadhaarTokenService = async ({
     throw createError(400, "A valid 12-digit Aadhaar number is required");
   }
 
-  console.log("[KYC] Generate token request");
-
   const [user, profile] = await Promise.all([
     User.findById(userId).select("_id isBlocked").lean(),
 
@@ -738,24 +776,11 @@ export const generateAadhaarTokenService = async ({
     throw createError(404, "Profile not found");
   }
 
-  console.log("[KYC] Existing profile:", {
-    kycStatus: profile.kycStatus,
-    isKycVerified: profile.isKycVerified,
-  });
-
   if (profile.isKycVerified === true || profile.kycStatus === "VERIFIED") {
     throw createError(409, "Your KYC is already verified");
   }
 
   const latest = await getLatestVerification(userId);
-
-  if (latest) {
-    console.log("[KYC] Previous session:", {
-      status: latest.status,
-      verified: latest.verified,
-      initiatedAt: latest.initiatedAt,
-    });
-  }
 
   if (latest?.verified === true) {
     throw createError(409, "Your Aadhaar is already verified");
@@ -773,7 +798,7 @@ export const generateAadhaarTokenService = async ({
     if (retryAfter > Date.now()) {
       const remainingSeconds = Math.ceil((retryAfter - Date.now()) / 1000);
 
-      console.log("[KYC] Active session:", {
+      console.log("[KYC] Active verification:", {
         remainingSeconds,
       });
 
@@ -788,11 +813,14 @@ export const generateAadhaarTokenService = async ({
 
   const responseData = providerResult?.data;
 
-  if (!responseData?.client_id) {
+  if (
+    typeof responseData?.client_id !== "string" ||
+    !responseData.client_id.trim()
+  ) {
     throw createError(502, "Unable to create DigiLocker verification session");
   }
 
-  console.log("[KYC] Token generated successfully");
+  const clientId = responseData.client_id.trim();
 
   const submittedAt = new Date();
 
@@ -805,6 +833,16 @@ export const generateAadhaarTokenService = async ({
 
   try {
     await session.withTransaction(async () => {
+      const currentProfile = await Profile.findOne({ userId }).session(session);
+
+      if (
+        !currentProfile ||
+        currentProfile.isKycVerified === true ||
+        currentProfile.kycStatus === "VERIFIED"
+      ) {
+        throw createError(409, "Profile not found or KYC already verified");
+      }
+
       const currentLatest = await getLatestVerification(userId, session);
 
       if (currentLatest?.verified === true) {
@@ -850,7 +888,7 @@ export const generateAadhaarTokenService = async ({
           {
             userId,
             maskedAadhaar,
-            verificationId: responseData.client_id,
+            verificationId: clientId,
 
             apiProvider: "IDSPay",
             verificationMethod: "DIGILOCKER",
@@ -867,28 +905,28 @@ export const generateAadhaarTokenService = async ({
 
       verification = created[0];
 
-      updatedProfile = await Profile.findOneAndUpdate(
-        {
-          userId,
-          isKycVerified: { $ne: true },
-          kycStatus: { $ne: "VERIFIED" },
-        },
-        {
-          $set: {
-            kycDocumentType: "AADHAAR",
-            kycStatus: "PENDING",
-            isKycVerified: false,
-            kycSubmittedAt: submittedAt,
-            kycVerifiedAt: null,
-            kycRejectionReason: null,
-          },
-        },
-        {
-          returnDocument: "after",
-          runValidators: true,
-          session,
-        },
-      );
+     updatedProfile = await Profile.findOneAndUpdate(
+  {
+    userId,
+    isKycVerified: { $ne: true },
+    kycStatus: { $ne: "VERIFIED" },
+  },
+  {
+    $set: {
+      dateOfBirth: aadhaarDob,
+      kycDocumentType: "AADHAAR",
+      kycStatus: "VERIFIED",
+      isKycVerified: true,
+      kycVerifiedAt: verifiedAt,
+      kycRejectionReason: null,
+    },
+  },
+  {
+    returnDocument: "after",
+    runValidators: true,
+    session,
+  }
+);
 
       if (!updatedProfile) {
         throw createError(409, "Profile KYC could not be updated");
@@ -898,17 +936,17 @@ export const generateAadhaarTokenService = async ({
     await session.endSession();
   }
 
-  console.log("[KYC] Verification session saved");
-
   return {
     verificationId: verification._id,
-    client_id: responseData.client_id,
+    client_id: clientId,
 
     status: "PENDING",
     verified: false,
 
     kycDocumentType: updatedProfile.kycDocumentType,
+
     kycStatus: updatedProfile.kycStatus,
+
     isKycVerified: updatedProfile.isKycVerified,
 
     digilocker: responseData,
@@ -928,11 +966,11 @@ export const fetchAadhaarDetailsService = async ({ userId, client_id }) => {
     throw createError(400, "client_id is required");
   }
 
-  console.log("[KYC] Fetch verification request");
+  const clientId = client_id.trim();
 
   const verification = await AadhaarVerification.findOne({
     userId,
-    verificationId: client_id,
+    verificationId: clientId,
   });
 
   if (!verification) {
@@ -945,22 +983,17 @@ export const fetchAadhaarDetailsService = async ({ userId, client_id }) => {
     throw createError(409, "This verification session is no longer active");
   }
 
-  console.log("[KYC] Verification record:", {
-    status: verification.status,
-    verified: verification.verified,
-  });
-
   if (verification.verified === true) {
-    const profile = await Profile.findOne({ userId })
+    const profile = await Profile.findOne({
+      userId,
+    })
       .select(
         "dateOfBirth kycStatus isKycVerified kycDocumentType kycVerifiedAt",
       )
       .lean();
 
     if (profile?.kycStatus === "VERIFIED" && profile?.isKycVerified === true) {
-      console.log("[KYC] Already verified");
-
-      return buildVerifiedResponse(verification, profile);
+      return getVerifiedResponse(verification, profile);
     }
 
     throw createError(409, "KYC records require reconciliation");
@@ -970,11 +1003,9 @@ export const fetchAadhaarDetailsService = async ({ userId, client_id }) => {
     throw createError(409, "Verification session is no longer active");
   }
 
-  const providerResult = await fetchDigilockerDetailsService(client_id);
+  const providerResult = await fetchDigilockerDetailsService(clientId);
 
-  console.log("[KYC] IDSPay fetchDetails completed");
-
-  confirmProviderVerification(providerResult);
+  confirmProviderVerification(providerResult,clientId);
 
   const verifiedDetails = extractVerifiedDetails(providerResult);
 
@@ -1109,9 +1140,7 @@ export const fetchAadhaarDetailsService = async ({ userId, client_id }) => {
     await session.endSession();
   }
 
-  console.log("[KYC] Verification and profile updated");
-
-  return buildVerifiedResponse(updatedVerification, updatedProfile);
+  return getVerifiedResponse(updatedVerification, updatedProfile);
 };
 
 // ==========================================
@@ -1126,12 +1155,14 @@ export const processDigilockerCallbackService = async ({
     throw createError(400, "client_id is required");
   }
 
-  console.log("[KYC] DigiLocker callback received:", {
-    status,
+  const clientId = client_id.trim();
+
+  console.log("[KYC] Callback received:", {
+    status: getSafeStatus(status),
   });
 
   const verification = await AadhaarVerification.findOne({
-    verificationId: client_id,
+    verificationId: clientId,
   });
 
   if (!verification) {
@@ -1147,10 +1178,8 @@ export const processDigilockerCallbackService = async ({
     };
   }
 
-  console.log("[KYC] Fetching provider details after callback");
-
   return fetchAadhaarDetailsService({
     userId: verification.userId,
-    client_id,
+    client_id: clientId,
   });
 };
