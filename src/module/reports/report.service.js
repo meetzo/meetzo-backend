@@ -27,8 +27,6 @@ const createReportservice = async (reporterId, reportedUserId, reportData) => {
         reportedUserId,
         reason,
         description,
-        
-
     });
 
     return await report.save();

@@ -6,6 +6,8 @@ import MessageModel from "../../models/messageModel.js";
 import LikeModel from "../../models/like.Model.js";
 import UserModel from "../../models/userModel.js";
 import {encrypt, decrypt} from "../../utils/encryption.js";
+import BlockedUserModel from "../../models/blockeduserModel.js";
+import blockeduserModel from "../../models/blockeduserModel.js";
 
 const validId = (value) => mongoose.Types.ObjectId.isValid(value);
 // Normalize IDs before comparing them or building a pair key: uppercase and
@@ -41,6 +43,7 @@ const pagination = (page, limit, total) => ({
 // Old conversations remain readable after an unlike, but new sends are blocked.
 export const assertMatchService = async (userId, targetUserId) => {
   const [first, second] = await Promise.all([
+    isBlockedBetween(userId, targetUserId),
     LikeModel.exists({ fromUserId: userId, toUserId: targetUserId, status: "ACTIVE" }),
     LikeModel.exists({ fromUserId: targetUserId, toUserId: userId, status: "ACTIVE" }),
   ]);
@@ -140,8 +143,19 @@ export const accessChatService = async ({ userId, targetUserId }) => {
 // and totals describe the chats the caller can actually see.
 export const getUserChatsService = async ({ userId, page, limit, archived = false }) => {
   const pagingResult = paging(page, limit, 20);
+// Find all users who have blocked or been blocked by this user, then exclude
+const blocks = await UserBlockedModel.find({
+    $or: [{ blockerId: userId }, { blockedId: userId }],
+  }).select("blockerId blockedId").lean();
+  const blockedIds = blocks.map((b) =>
+    idString(b.blockerId) === idString(userId) ? b.blockedId : b.blockerId
+  );
+
+
+
+
   const query = {
-    participants: userId,
+    participants: { $all: [userId], $nin: blockedIds },
     participantStates: { $elemMatch: { userId, isDeleted: false, isArchived: archived } },
   };
   const [chats, total] = await Promise.all([
@@ -502,3 +516,12 @@ const toClientMessage = (msg) => {
   const obj = typeof msg.toObject === "function" ? msg.toObject() : { ...msg };
   return { ...obj, message: safeDecrypt(obj.message) };
 };
+
+// True if either user has blocked the other
+const isBlockedBetween = (a, b) =>
+  blockeduserModel.exists({
+    $or: [
+      { blockerId: a, blockedId: b },
+      { blockerId: b, blockedId: a },
+    ],
+  });

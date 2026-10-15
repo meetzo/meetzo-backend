@@ -833,7 +833,7 @@ export const sendEmailLoginOtpService = async ({ email }) => {
   if (user.isBlocked) {
     throw new ApiError(
       403,
-      "Your account has been blocked. Please contact support.",
+      "Your account has been restricted. Please contact support.",
     );
   }
 
@@ -979,7 +979,7 @@ export const verifyEmailLoginOtpService = async ({ accessToken, otp }) => {
   if (user.isBlocked) {
     throw new ApiError(
       403,
-      "Your account has been blocked. Please contact support.",
+      "Your account has been restricted. Please contact support.",
     );
   }
 
@@ -1125,8 +1125,8 @@ export const createPasswordService = async ({
   }
 
   if (user.isBlocked) {
-    throw new ApiError(403, "Your account has been blocked");
-  }
+    throw new ApiError(403, "Your account has been restricted. Please contact support.");
+  }  
 
   if (!user.isVerified) {
     throw new ApiError(403, "Please verify your account first");
@@ -1226,7 +1226,7 @@ export const googleAuthService = async (idToken) => {
 
   if (user) {
     if (user.isBlocked) {
-      throw new ApiError(403, "Your account has been blocked");
+      throw new ApiError(403, "Your account has been restricted. Please contact support.");
     }
 
     if (user.googleId && String(user.googleId) !== googleId) {
