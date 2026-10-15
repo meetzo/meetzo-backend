@@ -91,32 +91,99 @@
 import config from "../../config/config.js";
 import axios from "axios";
 
-const IDSPAY_ENDPOINT = `${config.ids_base_url}/srv2/validation/digilocker-digital-kyc`;
+const getEndpoint = () => {
+  if (!config.ids_base_url) {
+    throw new Error("IDSPay base URL is not configured");
+  }
 
-const getStatusDiagnostics = (result) => {
-  const safeValue = (value) =>
-    typeof value === "boolean" ||
-    typeof value === "number" ||
-    (typeof value === "string" && value.length <= 32)
-      ? value
-      : undefined;
+  return `${config.ids_base_url.replace(/\/+$/, "")}/srv2/validation/digilocker-digital-kyc`;
+};
+
+const safeStatusValue = (value) => {
+  if (typeof value === "boolean" || typeof value === "number") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return value.length <= 40 ? value : "[REDACTED]";
+  }
+
+  return undefined;
+};
+
+const getSafeStatusObject = (value) => {
+  if (!value || typeof value !== "object") {
+    return {
+      type: typeof value,
+      value: safeStatusValue(value),
+    };
+  }
 
   return {
+    type: Array.isArray(value) ? "array" : "object",
+    keys: Object.keys(value),
+    code: safeStatusValue(value.code),
+    status: safeStatusValue(value.status),
+    success: safeStatusValue(value.success),
+    status_code: safeStatusValue(value.status_code),
+    message_code: safeStatusValue(value.message_code),
+    verified: safeStatusValue(value.verified),
+  };
+};
+
+const logResponseStatus = (methodName, response) => {
+  const result = response.data;
+
+  console.log(`[IDSPay] ${methodName} RESPONSE DEBUG:`, {
+    httpStatus: response.status,
+
     responseKeys: Object.keys(result || {}),
     dataKeys: Object.keys(result?.data || {}),
 
-    success: safeValue(result?.success),
-    status: safeValue(result?.status),
+    success: safeStatusValue(result?.success),
 
-    dataSuccess: safeValue(result?.data?.success),
-    dataStatus: safeValue(result?.data?.status),
+    status: getSafeStatusObject(result?.status),
 
-    verificationStatus: safeValue(result?.data?.verification_status),
+    statusCode: safeStatusValue(result?.status_code),
+    messageCode: safeStatusValue(result?.message_code),
+
+    dataStatus: getSafeStatusObject(result?.data?.status),
+
+    dataSuccess: safeStatusValue(result?.data?.success),
+
+    verificationStatus: safeStatusValue(result?.data?.verification_status),
+
+    metadataKeys:
+      result?.data?.digilocker_metadata &&
+      typeof result.data.digilocker_metadata === "object"
+        ? Object.keys(result.data.digilocker_metadata)
+        : [],
 
     hasClientId: Boolean(result?.data?.client_id),
 
+    hasLaunchUrl: Boolean(result?.data?.url),
+
     hasAadhaarXml: Boolean(result?.data?.aadhaar_xml_data),
-  };
+  });
+};
+
+const logProviderError = (methodName, error) => {
+  const result = error.response?.data;
+
+  console.error(`[IDSPay] ${methodName} ERROR:`, {
+    httpStatus: error.response?.status,
+    errorCode: error.code,
+
+    responseKeys: Object.keys(result || {}),
+
+    success: safeStatusValue(result?.success),
+
+    status: getSafeStatusObject(result?.status),
+
+    statusCode: safeStatusValue(result?.status_code),
+
+    messageCode: safeStatusValue(result?.message_code),
+  });
 };
 
 export const generateDigilockerTokenService = async (aadhaar_number) => {
@@ -127,6 +194,7 @@ export const generateDigilockerTokenService = async (aadhaar_number) => {
       token_id: config.ids_token_id,
 
       methodName: "generateToken",
+
       aadhaar_number,
 
       redirectUrl: "https://backend.meetzo.in/api/kyc/digilocker-callback",
@@ -134,35 +202,20 @@ export const generateDigilockerTokenService = async (aadhaar_number) => {
       logoUrl: "https://via.placeholder.com/200x200.png",
     };
 
-    console.log("[IDSPay] Generating DigiLocker token");
+    console.log("[IDSPay] Generating token");
 
-    console.log("[IDSPay] Configuration:", {
-      baseUrlConfigured: Boolean(config.ids_base_url),
-      apiIdConfigured: Boolean(config.ids_api_id),
-      apiKeyConfigured: Boolean(config.ids_api_key),
-      tokenIdConfigured: Boolean(config.ids_token_id),
-    });
-
-    const response = await axios.post(IDSPAY_ENDPOINT, payload, {
+    const response = await axios.post(getEndpoint(), payload, {
       headers: {
         "Content-Type": "application/json",
       },
       timeout: 30000,
     });
 
-    console.log("[IDSPay] Generate token response:", {
-      httpStatus: response.status,
-      ...getStatusDiagnostics(response.data),
-    });
+    logResponseStatus("GENERATE TOKEN", response);
 
     return response.data;
   } catch (error) {
-    console.error("[IDSPay] Generate token failed:", {
-      httpStatus: error.response?.status,
-      errorCode: error.code,
-      message: error.message,
-    });
-
+    logProviderError("GENERATE TOKEN", error);
     throw error;
   }
 };
@@ -175,31 +228,24 @@ export const fetchDigilockerDetailsService = async (client_id) => {
       token_id: config.ids_token_id,
 
       methodName: "fetchDetails",
+
       client_id,
     };
 
-    console.log("[IDSPay] Fetching DigiLocker details");
+    console.log("[IDSPay] Fetching verification details");
 
-    const response = await axios.post(IDSPAY_ENDPOINT, payload, {
+    const response = await axios.post(getEndpoint(), payload, {
       headers: {
         "Content-Type": "application/json",
       },
       timeout: 30000,
     });
 
-    console.log("[IDSPay] FETCH DETAILS DEBUG:", {
-      httpStatus: response.status,
-      ...getStatusDiagnostics(response.data),
-    });
+    logResponseStatus("FETCH DETAILS", response);
 
     return response.data;
   } catch (error) {
-    console.error("[IDSPay] Fetch details failed:", {
-      httpStatus: error.response?.status,
-      errorCode: error.code,
-      message: error.message,
-    });
-
+    logProviderError("FETCH DETAILS", error);
     throw error;
   }
 };
