@@ -6,7 +6,7 @@ import {
   getLikeStatusService,
   getReceivedLikesCountService,
   getSentLikesCountService,
-  getLikedProfilesService,
+  getLikedProfilesService
 } from "./likes.service.js";
 
 /**
@@ -196,9 +196,51 @@ export const getSentLikesCountController = async (req, res, next) => {
  * Returns all profiles liked by
  * currently logged-in user.
  */
-export const getLikedProfilesController = async (req, res, next) => {
+// export const getLikedProfilesController = async (req, res, next) => {
+//   try {
+//     const userId = req.user._id;
+
+//     const { page = 1, limit = 20 } = req.query;
+
+//     const result = await getLikedProfilesService({
+//       userId,
+//       page,
+//       limit,
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+
+//       message: "Liked profiles fetched successfully",
+//       count: result.data.length,
+//       data: result.data,
+//       pagination: result.pagination,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+
+
+
+
+
+
+export const getLikedProfilesController = async (
+  req,
+  res,
+  next
+) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user?._id || req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
 
     const { page = 1, limit = 20 } = req.query;
 
@@ -210,8 +252,7 @@ export const getLikedProfilesController = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-
-      message: "Liked profiles fetched successfully",
+      message: "Received liked profiles fetched successfully",
       count: result.data.length,
       data: result.data,
       pagination: result.pagination,
@@ -220,3 +261,7 @@ export const getLikedProfilesController = async (req, res, next) => {
     next(error);
   }
 };
+
+
+
+

@@ -8,7 +8,7 @@ import {
   getLikeStatusController,
   getReceivedLikesCountController,
   getSentLikesCountController,
-  getLikedProfilesController
+  getLikedProfilesController,
 } from "./likes.controller.js";
 
 import { isAuthenticated } from "../../middleware/auth.middleware.js";
@@ -45,7 +45,7 @@ router.get("/sent/like", getSentLikesCountController);
  * Example:
  * GET /api/likes/received?page=1&limit=20
  */
-router.get("/received", getReceivedLikesController);
+router.get("/received", getLikedProfilesController);
 
 /**
  * GET SENT LIKES
@@ -73,6 +73,6 @@ router.get("/status/:userId", getLikeStatusController);
 router.patch("/cancel/:userId", unlikeUserController);
 
 
-router.get("/getLikedUsers",getLikedProfilesController);
+router.get("/getLikedUsers", isAuthenticated, getLikedProfilesController);
 
 export default router;

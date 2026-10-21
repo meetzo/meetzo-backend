@@ -414,143 +414,452 @@ export const getSentLikesCountService = async ({ userId }) => {
  * Profile
  */
 
+// export const getLikedProfilesService = async ({
+//   userId,
+//   page = 1,
+//   limit = 20,
+// }) => {
+//   if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+//     throw new ApiError(400, "Invalid user id");
+//   }
+
+//   const pagination = normalizePagination({
+//     page,
+//     limit,
+//   });
+
+//   const loggedInUserId = new mongoose.Types.ObjectId(userId);
+
+//   // ========================================
+//   // GET ALL MATCHES OF LOGGED-IN USER
+//   // ========================================
+
+//   const matches = await MatchModel.find({
+//     status: "ACTIVE",
+
+//     $or: [
+//       {
+//         user1Id: loggedInUserId,
+//       },
+//       {
+//         user2Id: loggedInUserId,
+//       },
+//     ],
+//   })
+//     .select("user1Id user2Id")
+//     .lean();
+
+//   // ========================================
+//   // GET MATCHED USER IDS
+//   // ========================================
+
+//   const matchedUserIds = matches.map((match) => {
+//     const user1Id = match.user1Id.toString();
+
+//     const user2Id = match.user2Id.toString();
+
+//     return user1Id === userId.toString() ? match.user2Id : match.user1Id;
+//   });
+
+//   // ========================================
+//   // LIKED USERS FILTER
+//   // EXCLUDE MATCHED USERS
+//   // ========================================
+
+//   const filter = {
+//     fromUserId: loggedInUserId,
+
+//     status: "ACTIVE",
+
+//     toUserId: {
+//       $nin: matchedUserIds,
+//     },
+//   };
+
+//   // ========================================
+//   // FETCH LIKES
+//   // ========================================
+
+//   const [likes, total] = await Promise.all([
+//     LikeModel.find(filter)
+//       .select("_id toUserId createdAt")
+//       .sort({
+//         createdAt: -1,
+//       })
+//       .skip(pagination.skip)
+//       .limit(pagination.limit)
+//       .lean(),
+
+//     LikeModel.countDocuments(filter),
+//   ]);
+
+//   // ========================================
+//   // NO LIKES FOUND
+//   // ========================================
+
+//   if (likes.length === 0) {
+//     return {
+//       data: [],
+
+//       pagination: {
+//         currentPage: pagination.page,
+
+//         limit: pagination.limit,
+
+//         total: 0,
+
+//         totalPages: 0,
+
+//         hasNextPage: false,
+
+//         hasPreviousPage: pagination.page > 1,
+
+//         nextPage: null,
+
+//         previousPage: pagination.page > 1 ? pagination.page - 1 : null,
+//       },
+//     };
+//   }
+
+//   // ========================================
+//   // LIKED USER IDS
+//   // ========================================
+
+//   const likedUserIds = likes.map((like) => like.toUserId);
+
+//   // ========================================
+//   // FETCH PROFILES
+//   // ========================================
+
+//   const profiles = await profileModel
+//     .find({
+//       userId: {
+//         $in: likedUserIds,
+//       },
+//     })
+
+//     .populate({
+//       path: "userId",
+
+//       select: ["_id", "name", "email", "phone", "isBlocked"].join(" "),
+
+//       match: {
+//         isBlocked: {
+//           $ne: true,
+//         },
+//       },
+//     })
+
+//     .lean();
+
+//   // ========================================
+//   // CREATE PROFILE MAP
+//   // ========================================
+
+//   const profileMap = new Map();
+
+//   for (const profile of profiles) {
+//     if (!profile.userId) {
+//       continue;
+//     }
+
+//     profileMap.set(profile.userId._id.toString(), profile);
+//   }
+
+//   // ========================================
+//   // FORMAT RESPONSE
+//   // ========================================
+
+//   const data = likes
+//     .map((like) => {
+//       const profile = profileMap.get(like.toUserId.toString());
+
+//       if (!profile) {
+//         return null;
+//       }
+
+//       return {
+//         likeId: like._id,
+
+//         likedAt: like.createdAt,
+
+//         isLiked: true,
+
+//         user: profile.userId,
+
+//         profile: {
+//           ...profile,
+
+//           userId: undefined,
+//         },
+//       };
+//     })
+//     .filter(Boolean);
+
+//   // ========================================
+//   // PAGINATION
+//   // ========================================
+
+//   const totalPages = total === 0 ? 0 : Math.ceil(total / pagination.limit);
+
+//   return {
+//     data,
+
+//     pagination: {
+//       currentPage: pagination.page,
+
+//       limit: pagination.limit,
+
+//       total,
+
+//       totalPages,
+
+//       hasNextPage: pagination.page < totalPages,
+
+//       hasPreviousPage: pagination.page > 1,
+
+//       nextPage: pagination.page < totalPages ? pagination.page + 1 : null,
+
+//       previousPage: pagination.page > 1 ? pagination.page - 1 : null,
+//     },
+//   };
+// };
+
+
+
+
+
+
+const calculateAge = (dateOfBirth) => {
+  if (!dateOfBirth) return null;
+
+  const dob = new Date(dateOfBirth);
+
+  if (Number.isNaN(dob.getTime())) return null;
+
+  const today = new Date();
+
+  let age = today.getUTCFullYear() - dob.getUTCFullYear();
+
+  const hasBirthdayPassed =
+    today.getUTCMonth() > dob.getUTCMonth() ||
+    (today.getUTCMonth() === dob.getUTCMonth() &&
+      today.getUTCDate() >= dob.getUTCDate());
+
+  if (!hasBirthdayPassed) age--;
+
+  return age >= 0 ? age : null;
+};
+
 export const getLikedProfilesService = async ({
   userId,
   page = 1,
   limit = 20,
 }) => {
+  // ========================================
+  // VALIDATION
+  // ========================================
+
   if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
     throw new ApiError(400, "Invalid user id");
   }
 
-  const pagination = normalizePagination({
-    page,
-    limit,
-  });
+  const currentPage = Math.max(1, parseInt(page, 10) || 1);
+
+  const pageLimit = Math.min(
+    100,
+    Math.max(1, parseInt(limit, 10) || 20)
+  );
+
+  const skip = (currentPage - 1) * pageLimit;
 
   const loggedInUserId = new mongoose.Types.ObjectId(userId);
 
   // ========================================
-  // GET ALL MATCHES OF LOGGED-IN USER
+  // GET ACTIVE MATCHES
   // ========================================
 
   const matches = await MatchModel.find({
     status: "ACTIVE",
-
     $or: [
-      {
-        user1Id: loggedInUserId,
-      },
-      {
-        user2Id: loggedInUserId,
-      },
+      { user1Id: loggedInUserId },
+      { user2Id: loggedInUserId },
     ],
   })
     .select("user1Id user2Id")
     .lean();
 
-  // ========================================
-  // GET MATCHED USER IDS
-  // ========================================
-
-  const matchedUserIds = matches.map((match) => {
-    const user1Id = match.user1Id.toString();
-
-    const user2Id = match.user2Id.toString();
-
-    return user1Id === userId.toString() ? match.user2Id : match.user1Id;
-  });
+  const matchedUserIds = matches.map((match) =>
+    match.user1Id.toString() === loggedInUserId.toString()
+      ? match.user2Id
+      : match.user1Id
+  );
 
   // ========================================
-  // LIKED USERS FILTER
-  // EXCLUDE MATCHED USERS
+  // RECEIVED LIKES FILTER
   // ========================================
 
-  const filter = {
-    fromUserId: loggedInUserId,
-
+  const baseFilter = {
+    toUserId: loggedInUserId,
     status: "ACTIVE",
-
-    toUserId: {
+    fromUserId: {
       $nin: matchedUserIds,
     },
   };
 
   // ========================================
-  // FETCH LIKES
+  // FIND ELIGIBLE SENDERS
+  // ========================================
+
+  const senderIds = await LikeModel.distinct(
+    "fromUserId",
+    baseFilter
+  );
+
+  const availableUsers = await userModel
+    .find({
+      _id: { $in: senderIds },
+      isBlocked: { $ne: true },
+    })
+    .select("_id")
+    .lean();
+
+  const availableUserIds = availableUsers.map(
+    (user) => user._id
+  );
+
+  const availableProfiles = await profileModel
+    .find({
+      userId: { $in: availableUserIds },
+      isProfileCompleted: true,
+    })
+    .select("userId")
+    .lean();
+
+  const eligibleSenderIds = availableProfiles.map(
+    (profile) => profile.userId
+  );
+
+  const finalFilter = {
+    ...baseFilter,
+    fromUserId: { $in: eligibleSenderIds },
+  };
+
+  // ========================================
+  // FETCH LIKES WITH PAGINATION
   // ========================================
 
   const [likes, total] = await Promise.all([
-    LikeModel.find(filter)
-      .select("_id toUserId createdAt")
-      .sort({
-        createdAt: -1,
-      })
-      .skip(pagination.skip)
-      .limit(pagination.limit)
+    LikeModel.find(finalFilter)
+      .select("_id fromUserId createdAt")
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(pageLimit)
       .lean(),
 
-    LikeModel.countDocuments(filter),
+    LikeModel.countDocuments(finalFilter),
   ]);
 
-  // ========================================
-  // NO LIKES FOUND
-  // ========================================
+  const totalPages = Math.ceil(total / pageLimit);
+
+  const pagination = {
+    currentPage,
+    limit: pageLimit,
+    total,
+    totalPages,
+    hasNextPage: currentPage < totalPages,
+    hasPreviousPage: currentPage > 1,
+    nextPage: currentPage < totalPages
+      ? currentPage + 1
+      : null,
+    previousPage: currentPage > 1
+      ? currentPage - 1
+      : null,
+  };
 
   if (likes.length === 0) {
     return {
       data: [],
-
-      pagination: {
-        currentPage: pagination.page,
-
-        limit: pagination.limit,
-
-        total: 0,
-
-        totalPages: 0,
-
-        hasNextPage: false,
-
-        hasPreviousPage: pagination.page > 1,
-
-        nextPage: null,
-
-        previousPage: pagination.page > 1 ? pagination.page - 1 : null,
-      },
+      pagination,
     };
   }
 
   // ========================================
-  // LIKED USER IDS
+  // FETCH USERS WHO LIKED ME
   // ========================================
 
-  const likedUserIds = likes.map((like) => like.toUserId);
+  const likedByUserIds = likes.map(
+    (like) => like.fromUserId
+  );
+
+  const [users, profiles] = await Promise.all([
+    userModel
+      .find({
+        _id: { $in: likedByUserIds },
+        isBlocked: { $ne: true },
+      })
+      .select("_id name")
+      .lean(),
+
+    profileModel
+      .find({
+        userId: { $in: likedByUserIds },
+        isProfileCompleted: true,
+      })
+      .select(
+        [
+          "_id",
+          "userId",
+          "profileImage",
+          "photos",
+          "dateOfBirth",
+          "height",
+          "languages",
+          "gender",
+          "genderDescription",
+          "showGenderOnProfile",
+          "profession",
+          "customProfession",
+          "orientation",
+          "customOrientation",
+          "showOrientationOnProfile",
+          "meetzoGoal",
+          "relationshipPace",
+          "smoking",
+          "drinking",
+          "fitness",
+          "pets",
+          "selfDescription",
+          "interests",
+          "religion",
+          "customReligion",
+          "idealWeekend",
+          "values",
+          "bio",
+          "showBioOnProfile",
+          "education",
+          "college",
+          "company",
+          "jobTitle",
+          "city",
+          "hometown",
+          "isKycVerified",
+          "isFaceVerified",
+          "isProfileCompleted",
+        ].join(" ")
+      )
+      .lean(),
+  ]);
 
   // ========================================
-  // FETCH PROFILES
+  // CREATE USER MAP
   // ========================================
 
-  const profiles = await profileModel
-    .find({
-      userId: {
-        $in: likedUserIds,
-      },
-    })
+  const userMap = new Map();
 
-    .populate({
-      path: "userId",
-
-      select: ["_id", "name", "email", "phone", "isBlocked"].join(" "),
-
-      match: {
-        isBlocked: {
-          $ne: true,
-        },
-      },
-    })
-
-    .lean();
+  for (const user of users) {
+    userMap.set(user._id.toString(), user);
+  }
 
   // ========================================
   // CREATE PROFILE MAP
@@ -559,11 +868,99 @@ export const getLikedProfilesService = async ({
   const profileMap = new Map();
 
   for (const profile of profiles) {
-    if (!profile.userId) {
-      continue;
-    }
+    const userKey = profile.userId.toString();
 
-    profileMap.set(profile.userId._id.toString(), profile);
+    const publicPhotos = (profile.photos || [])
+      .filter((photo) => photo.visibility === "PUBLIC")
+      .sort((a, b) => a.order - b.order)
+      .map((photo) => ({
+        _id: photo._id,
+        url: photo.url,
+        visibility: photo.visibility,
+        isMain: photo.isMain,
+        order: photo.order,
+      }));
+
+    const mainPhoto =
+      publicPhotos.find((photo) => photo.isMain) ||
+      publicPhotos[0] ||
+      null;
+
+    const formattedProfile = {
+      _id: profile._id,
+
+      profileImage: mainPhoto?.url || null,
+      photos: publicPhotos,
+
+      age: calculateAge(profile.dateOfBirth),
+      height: profile.height || null,
+      languages: profile.languages || [],
+
+      gender: profile.showGenderOnProfile
+        ? profile.gender
+        : null,
+
+      genderDescription: profile.showGenderOnProfile
+        ? profile.genderDescription
+        : null,
+
+      showGenderOnProfile:
+        profile.showGenderOnProfile ?? true,
+
+      profession: profile.profession,
+      customProfession: profile.customProfession,
+
+      orientation: profile.showOrientationOnProfile
+        ? profile.orientation
+        : null,
+
+      customOrientation:
+        profile.showOrientationOnProfile
+          ? profile.customOrientation
+          : null,
+
+      showOrientationOnProfile:
+        profile.showOrientationOnProfile ?? true,
+
+      meetzoGoal: profile.meetzoGoal,
+      relationshipPace: profile.relationshipPace,
+
+      smoking: profile.smoking,
+      drinking: profile.drinking,
+      fitness: profile.fitness,
+      pets: profile.pets,
+
+      selfDescription: profile.selfDescription || [],
+      interests: profile.interests || [],
+
+      religion: profile.religion,
+      customReligion: profile.customReligion,
+
+      idealWeekend: profile.idealWeekend || [],
+      values: profile.values || [],
+
+      bio: profile.showBioOnProfile
+        ? profile.bio
+        : null,
+
+      showBioOnProfile:
+        profile.showBioOnProfile ?? true,
+
+      education: profile.education,
+      college: profile.college,
+      company: profile.company,
+      jobTitle: profile.jobTitle,
+
+      city: profile.city,
+      hometown: profile.hometown,
+
+      isKycVerified: profile.isKycVerified === true,
+      isFaceVerified: profile.isFaceVerified === true,
+      isProfileCompleted:
+        profile.isProfileCompleted === true,
+    };
+
+    profileMap.set(userKey, formattedProfile);
   }
 
   // ========================================
@@ -572,55 +969,26 @@ export const getLikedProfilesService = async ({
 
   const data = likes
     .map((like) => {
-      const profile = profileMap.get(like.toUserId.toString());
+      const senderId = like.fromUserId.toString();
 
-      if (!profile) {
-        return null;
-      }
+      const user = userMap.get(senderId);
+      const profile = profileMap.get(senderId);
+
+      if (!user || !profile) return null;
 
       return {
         likeId: like._id,
-
         likedAt: like.createdAt,
-
         isLiked: true,
 
-        user: profile.userId,
-
-        profile: {
-          ...profile,
-
-          userId: undefined,
-        },
+        user,
+        profile,
       };
     })
     .filter(Boolean);
 
-  // ========================================
-  // PAGINATION
-  // ========================================
-
-  const totalPages = total === 0 ? 0 : Math.ceil(total / pagination.limit);
-
   return {
     data,
-
-    pagination: {
-      currentPage: pagination.page,
-
-      limit: pagination.limit,
-
-      total,
-
-      totalPages,
-
-      hasNextPage: pagination.page < totalPages,
-
-      hasPreviousPage: pagination.page > 1,
-
-      nextPage: pagination.page < totalPages ? pagination.page + 1 : null,
-
-      previousPage: pagination.page > 1 ? pagination.page - 1 : null,
-    },
+    pagination,
   };
 };
