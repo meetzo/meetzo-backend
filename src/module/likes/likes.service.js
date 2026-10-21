@@ -147,7 +147,10 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
  * -------------------------------------------------------
  */
 export const unlikeUserService = async ({ fromUserId, toUserId }) => {
-  if (!mongoose.Types.ObjectId.isValid(toUserId)) {
+  if (
+    !mongoose.Types.ObjectId.isValid(fromUserId) ||
+    !mongoose.Types.ObjectId.isValid(toUserId)
+  ) {
     throw new ApiError(400, "Invalid user id");
   }
 
@@ -155,36 +158,25 @@ export const unlikeUserService = async ({ fromUserId, toUserId }) => {
     throw new ApiError(400, "Invalid operation");
   }
 
-  /**
-   * We don't delete the Like document.
-   *
-   * ACTIVE → REMOVED
-   */
   const like = await LikeModel.findOneAndUpdate(
     {
       fromUserId,
       toUserId,
-      status: "ACTIVE",
     },
-
     {
       $set: {
         status: "REMOVED",
       },
     },
-
     {
-      new: true,
-    },
+      upsert: true,
+      returnDocument: "after",
+      runValidators: true,
+    }
   ).lean();
-
-  if (!like) {
-    throw new ApiError(404, "Active like not found");
-  }
 
   return like;
 };
-
 /**
  * -------------------------------------------------------
  * GET SENT LIKES
