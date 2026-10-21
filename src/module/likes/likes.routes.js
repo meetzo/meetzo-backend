@@ -70,7 +70,7 @@ router.get("/status/:userId", getLikeStatusController);
  * Example:
  * DELETE /api/likes/USER_ID
  */
-router.delete("/cancel/:userId", unlikeUserController);
+router.patch("/cancel/:userId", unlikeUserController);
 
 
 router.get("/getLikedUsers",getLikedProfilesController);
