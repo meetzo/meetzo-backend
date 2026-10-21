@@ -10,6 +10,7 @@ import likeRoute from "./module/likes/likes.routes.js";
 import chatRoutes from "./module/chat/chat.routes.js";
 import discoveryRoutes  from "./module/discovery/discovery.routes.js"
 import idsRoutes from "./module/aadhar/ids.routes.js";
+import subscriptionRoutes from "./module/subscription/subscription.routes.js"
 import "dotenv/config";
 
 const app = express();
@@ -38,7 +39,7 @@ app.use("/api/match", matchRoutes)
 app.use("/api/chat", chatRoutes);
 app.use("/api/discovery", discoveryRoutes);
 app.use("/api/kyc", idsRoutes);
-
+app.use("/api/subscription", subscriptionRoutes);
 
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {

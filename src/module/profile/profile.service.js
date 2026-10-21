@@ -4,6 +4,7 @@ import userModel from "../../models/userModel.js";
 import ApiError from "../../utils/api.error.js";
 import imageKit from "./imageKit.service.js";
 import { calculateProfileCompletion } from "../../utils/calculateProfileCompletion.js";
+import subscriptionModel from "../../models/subscriptionModel.js";
 
 /**
  * Calculate age from date of birth.
@@ -711,12 +712,13 @@ export const saveProfileDetailsService = async ({
 
 
 
+
 export const getProfileService = async ({ userId }) => {
   // ==========================================
   // 1. VALIDATE USER
   // ==========================================
 
-  if (!userId) {
+  if (!userId || !mongoose.isValidObjectId(userId)) {
     throw new ApiError(401, "Authentication is required");
   }
 
@@ -736,19 +738,44 @@ export const getProfileService = async ({ userId }) => {
   }
 
   // ==========================================
-  // 2. FETCH PROFILE
+  // 2. FETCH PROFILE AND SUBSCRIPTION
   // ==========================================
 
-  const profile = await profileModel
-    .findOne({ userId })
-    .lean();
+  const now = new Date();
+
+  const [profile, subscription] = await Promise.all([
+    profileModel
+      .findOne({ userId })
+      .lean(),
+
+    subscriptionModel
+      .findOne({
+        userId,
+        status: "ACTIVE",
+        startDate: { $lte: now },
+        $or: [
+          { endDate: null },
+          { endDate: { $gt: now } },
+        ],
+      })
+      .select(
+        "planCode source status startDate endDate autoRenew"
+      )
+      .lean(),
+  ]);
 
   if (!profile) {
     throw new ApiError(404, "Profile not found");
   }
 
   // ==========================================
-  // 3. NORMALIZE PHOTOS
+  // 3. CHECK PREMIUM ACCESS
+  // ==========================================
+
+  const isPremium = Boolean(subscription);
+
+  // ==========================================
+  // 4. NORMALIZE PHOTOS
   // ==========================================
 
   const photos = Array.isArray(profile.photos)
@@ -764,7 +791,7 @@ export const getProfileService = async ({ userId }) => {
     .sort((a, b) => a.order - b.order);
 
   // ==========================================
-  // 4. PHOTO STATISTICS
+  // 5. PHOTO STATISTICS
   // ==========================================
 
   const totalPhotos = photos.length;
@@ -773,7 +800,6 @@ export const getProfileService = async ({ userId }) => {
 
   const hasPhotos = totalPhotos > 0;
 
-  // Current MeetZo photo requirements
   const minimumPublicPhotos = 2;
   const minimumPrivatePhotos = 1;
 
@@ -782,7 +808,7 @@ export const getProfileService = async ({ userId }) => {
     totalPrivatePhotos >= minimumPrivatePhotos;
 
   // ==========================================
-  // 5. MAIN PROFILE IMAGE
+  // 6. MAIN PROFILE IMAGE
   // ==========================================
 
   const mainPhoto =
@@ -794,15 +820,30 @@ export const getProfileService = async ({ userId }) => {
   const profileImageId = mainPhoto?.fileId || null;
 
   // ==========================================
-  // 6. RETURN RESPONSE
+  // 7. RETURN RESPONSE
   // ==========================================
 
   return {
     user,
 
+    // Subscription details for Flutter
+    isPremium,
+
+    subscription: subscription
+      ? {
+          planCode: subscription.planCode,
+          source: subscription.source,
+          status: subscription.status,
+          startDate: subscription.startDate,
+          endDate: subscription.endDate,
+          autoRenew: subscription.autoRenew,
+        }
+      : null,
+
     profile: {
       ...profile,
-       bio: profile.bio?.trim() || "null",
+
+      bio: profile.bio?.trim() || "null",
 
       photos: [
         ...publicPhotos,

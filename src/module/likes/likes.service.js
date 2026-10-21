@@ -172,7 +172,7 @@ export const unlikeUserService = async ({ fromUserId, toUserId }) => {
       upsert: true,
       returnDocument: "after",
       runValidators: true,
-    }
+    },
   ).lean();
 
   return like;
@@ -351,10 +351,7 @@ export const getReceivedLikesCountService = async ({ userId }) => {
   // Get all active matches of logged-in user
   const matches = await MatchModel.find({
     status: "ACTIVE",
-    $or: [
-      { user1Id: loggedInUserId },
-      { user2Id: loggedInUserId },
-    ],
+    $or: [{ user1Id: loggedInUserId }, { user2Id: loggedInUserId }],
   })
     .select("user1Id user2Id")
     .lean();
@@ -627,9 +624,6 @@ export const getSentLikesCountService = async ({ userId }) => {
 
 
 
-
-
-
 const calculateAge = (dateOfBirth) => {
   if (!dateOfBirth) return null;
 
@@ -650,6 +644,66 @@ const calculateAge = (dateOfBirth) => {
 
   return age >= 0 ? age : null;
 };
+
+// ========================================
+// CALCULATE DISTANCE IN KM
+// ========================================
+
+const calculateDistance = (location1, location2) => {
+  const coordinates1 = location1?.coordinates;
+  const coordinates2 = location2?.coordinates;
+
+  if (
+    !Array.isArray(coordinates1) ||
+    !Array.isArray(coordinates2) ||
+    coordinates1.length !== 2 ||
+    coordinates2.length !== 2
+  ) {
+    return null;
+  }
+
+  const [lon1, lat1] = coordinates1;
+  const [lon2, lat2] = coordinates2;
+
+  if (
+    ![lon1, lat1, lon2, lat2].every(
+      (value) => typeof value === "number" && Number.isFinite(value)
+    ) ||
+    Math.abs(lon1) > 180 ||
+    Math.abs(lon2) > 180 ||
+    Math.abs(lat1) > 90 ||
+    Math.abs(lat2) > 90
+  ) {
+    return null;
+  }
+
+  const earthRadiusKm = 6371;
+
+  const toRadians = (degree) => (degree * Math.PI) / 180;
+
+  const latitudeDifference = toRadians(lat2 - lat1);
+  const longitudeDifference = toRadians(lon2 - lon1);
+
+  const a =
+    Math.sin(latitudeDifference / 2) ** 2 +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(longitudeDifference / 2) ** 2;
+
+  const c =
+    2 * Math.atan2(
+      Math.sqrt(Math.max(0, Math.min(1, a))),
+      Math.sqrt(Math.max(0, 1 - a))
+    );
+
+  const distance = earthRadiusKm * c;
+
+  return Math.round(distance * 10) / 10;
+};
+
+// ========================================
+// RECEIVED LIKED PROFILES SERVICE
+// ========================================
 
 export const getLikedProfilesService = async ({
   userId,
@@ -674,6 +728,21 @@ export const getLikedProfilesService = async ({
   const skip = (currentPage - 1) * pageLimit;
 
   const loggedInUserId = new mongoose.Types.ObjectId(userId);
+
+  // ========================================
+  // GET LOGGED-IN USER LOCATION
+  // ========================================
+
+  const loggedInProfile = await profileModel
+    .findOne({ userId: loggedInUserId })
+    .select("location")
+    .lean();
+
+  if (!loggedInProfile) {
+    throw new ApiError(404, "Logged-in user profile not found");
+  }
+
+  const loggedInLocation = loggedInProfile.location;
 
   // ========================================
   // GET ACTIVE MATCHES
@@ -742,7 +811,9 @@ export const getLikedProfilesService = async ({
 
   const finalFilter = {
     ...baseFilter,
-    fromUserId: { $in: eligibleSenderIds },
+    fromUserId: {
+      $in: eligibleSenderIds,
+    },
   };
 
   // ========================================
@@ -769,12 +840,14 @@ export const getLikedProfilesService = async ({
     totalPages,
     hasNextPage: currentPage < totalPages,
     hasPreviousPage: currentPage > 1,
-    nextPage: currentPage < totalPages
-      ? currentPage + 1
-      : null,
-    previousPage: currentPage > 1
-      ? currentPage - 1
-      : null,
+    nextPage:
+      currentPage < totalPages
+        ? currentPage + 1
+        : null,
+    previousPage:
+      currentPage > 1
+        ? currentPage - 1
+        : null,
   };
 
   if (likes.length === 0) {
@@ -843,6 +916,7 @@ export const getLikedProfilesService = async ({
           "jobTitle",
           "city",
           "hometown",
+          "location",
           "isKycVerified",
           "isFaceVerified",
           "isProfileCompleted",
@@ -862,7 +936,7 @@ export const getLikedProfilesService = async ({
   }
 
   // ========================================
-  // CREATE PROFILE MAP
+  // CREATE PROFILE MAP WITH DISTANCE
   // ========================================
 
   const profileMap = new Map();
@@ -886,6 +960,12 @@ export const getLikedProfilesService = async ({
       publicPhotos[0] ||
       null;
 
+    // Calculate distance between both users.
+    const distanceKm = calculateDistance(
+      loggedInLocation,
+      profile.location
+    );
+
     const formattedProfile = {
       _id: profile._id,
 
@@ -893,6 +973,11 @@ export const getLikedProfilesService = async ({
       photos: publicPhotos,
 
       age: calculateAge(profile.dateOfBirth),
+
+      // New distance fields
+      distanceKm,
+      
+
       height: profile.height || null,
       languages: profile.languages || [],
 
@@ -954,8 +1039,12 @@ export const getLikedProfilesService = async ({
       city: profile.city,
       hometown: profile.hometown,
 
-      isKycVerified: profile.isKycVerified === true,
-      isFaceVerified: profile.isFaceVerified === true,
+      isKycVerified:
+        profile.isKycVerified === true,
+
+      isFaceVerified:
+        profile.isFaceVerified === true,
+
       isProfileCompleted:
         profile.isProfileCompleted === true,
     };
