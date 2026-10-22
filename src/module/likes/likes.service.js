@@ -624,6 +624,11 @@ export const getSentLikesCountService = async ({ userId }) => {
 
 
 
+
+
+
+// recieved like for user
+
 const calculateAge = (dateOfBirth) => {
   if (!dateOfBirth) return null;
 
@@ -705,6 +710,385 @@ const calculateDistance = (location1, location2) => {
 // RECEIVED LIKED PROFILES SERVICE
 // ========================================
 
+// export const getLikedProfilesService = async ({
+//   userId,
+//   page = 1,
+//   limit = 20,
+// }) => {
+//   // ========================================
+//   // VALIDATION
+//   // ========================================
+
+//   if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+//     throw new ApiError(400, "Invalid user id");
+//   }
+
+//   const currentPage = Math.max(1, parseInt(page, 10) || 1);
+
+//   const pageLimit = Math.min(
+//     100,
+//     Math.max(1, parseInt(limit, 10) || 20)
+//   );
+
+//   const skip = (currentPage - 1) * pageLimit;
+
+//   const loggedInUserId = new mongoose.Types.ObjectId(userId);
+
+//   // ========================================
+//   // GET LOGGED-IN USER LOCATION
+//   // ========================================
+
+//   const loggedInProfile = await profileModel
+//     .findOne({ userId: loggedInUserId })
+//     .select("location")
+//     .lean();
+
+//   if (!loggedInProfile) {
+//     throw new ApiError(404, "Logged-in user profile not found");
+//   }
+
+//   const loggedInLocation = loggedInProfile.location;
+
+//   // ========================================
+//   // GET ACTIVE MATCHES
+//   // ========================================
+
+//   const matches = await MatchModel.find({
+//     status: "ACTIVE",
+//     $or: [
+//       { user1Id: loggedInUserId },
+//       { user2Id: loggedInUserId },
+//     ],
+//   })
+//     .select("user1Id user2Id")
+//     .lean();
+
+//   const matchedUserIds = matches.map((match) =>
+//     match.user1Id.toString() === loggedInUserId.toString()
+//       ? match.user2Id
+//       : match.user1Id
+//   );
+
+//   // ========================================
+//   // RECEIVED LIKES FILTER
+//   // ========================================
+
+//   const baseFilter = {
+//     toUserId: loggedInUserId,
+//     status: "ACTIVE",
+//     fromUserId: {
+//       $nin: matchedUserIds,
+//     },
+//   };
+
+//   // ========================================
+//   // FIND ELIGIBLE SENDERS
+//   // ========================================
+
+//   const senderIds = await LikeModel.distinct(
+//     "fromUserId",
+//     baseFilter
+//   );
+
+//   const availableUsers = await userModel
+//     .find({
+//       _id: { $in: senderIds },
+//       isBlocked: { $ne: true },
+//     })
+//     .select("_id")
+//     .lean();
+
+//   const availableUserIds = availableUsers.map(
+//     (user) => user._id
+//   );
+
+//   const availableProfiles = await profileModel
+//     .find({
+//       userId: { $in: availableUserIds },
+//       isProfileCompleted: true,
+//     })
+//     .select("userId")
+//     .lean();
+
+//   const eligibleSenderIds = availableProfiles.map(
+//     (profile) => profile.userId
+//   );
+
+//   const finalFilter = {
+//     ...baseFilter,
+//     fromUserId: {
+//       $in: eligibleSenderIds,
+//     },
+//   };
+
+//   // ========================================
+//   // FETCH LIKES WITH PAGINATION
+//   // ========================================
+
+//   const [likes, total] = await Promise.all([
+//     LikeModel.find(finalFilter)
+//       .select("_id fromUserId createdAt")
+//       .sort({ createdAt: -1, _id: -1 })
+//       .skip(skip)
+//       .limit(pageLimit)
+//       .lean(),
+
+//     LikeModel.countDocuments(finalFilter),
+//   ]);
+
+//   const totalPages = Math.ceil(total / pageLimit);
+
+//   const pagination = {
+//     currentPage,
+//     limit: pageLimit,
+//     total,
+//     totalPages,
+//     hasNextPage: currentPage < totalPages,
+//     hasPreviousPage: currentPage > 1,
+//     nextPage:
+//       currentPage < totalPages
+//         ? currentPage + 1
+//         : null,
+//     previousPage:
+//       currentPage > 1
+//         ? currentPage - 1
+//         : null,
+//   };
+
+//   if (likes.length === 0) {
+//     return {
+//       data: [],
+//       pagination,
+//     };
+//   }
+
+//   // ========================================
+//   // FETCH USERS WHO LIKED ME
+//   // ========================================
+
+//   const likedByUserIds = likes.map(
+//     (like) => like.fromUserId
+//   );
+
+//   const [users, profiles] = await Promise.all([
+//     userModel
+//       .find({
+//         _id: { $in: likedByUserIds },
+//         isBlocked: { $ne: true },
+//       })
+//       .select("_id name")
+//       .lean(),
+
+//     profileModel
+//       .find({
+//         userId: { $in: likedByUserIds },
+//         isProfileCompleted: true,
+//       })
+//       .select(
+//         [
+//           "_id",
+//           "userId",
+//           "profileImage",
+//           "photos",
+//           "dateOfBirth",
+//           "height",
+//           "languages",
+//           "gender",
+//           "genderDescription",
+//           "showGenderOnProfile",
+//           "profession",
+//           "customProfession",
+//           "orientation",
+//           "customOrientation",
+//           "showOrientationOnProfile",
+//           "meetzoGoal",
+//           "relationshipPace",
+//           "smoking",
+//           "drinking",
+//           "fitness",
+//           "pets",
+//           "selfDescription",
+//           "interests",
+//           "religion",
+//           "customReligion",
+//           "idealWeekend",
+//           "values",
+//           "bio",
+//           "showBioOnProfile",
+//           "education",
+//           "college",
+//           "company",
+//           "jobTitle",
+//           "city",
+//           "hometown",
+//           "location",
+//           "isKycVerified",
+//           "isFaceVerified",
+//           "isProfileCompleted",
+//         ].join(" ")
+//       )
+//       .lean(),
+//   ]);
+
+//   // ========================================
+//   // CREATE USER MAP
+//   // ========================================
+
+//   const userMap = new Map();
+
+//   for (const user of users) {
+//     userMap.set(user._id.toString(), user);
+//   }
+
+//   // ========================================
+//   // CREATE PROFILE MAP WITH DISTANCE
+//   // ========================================
+
+//   const profileMap = new Map();
+
+//   for (const profile of profiles) {
+//     const userKey = profile.userId.toString();
+
+//     const publicPhotos = (profile.photos || [])
+//       .filter((photo) => photo.visibility === "PUBLIC")
+//       .sort((a, b) => a.order - b.order)
+//       .map((photo) => ({
+//         _id: photo._id,
+//         url: photo.url,
+//         visibility: photo.visibility,
+//         isMain: photo.isMain,
+//         order: photo.order,
+//       }));
+
+//     const mainPhoto =
+//       publicPhotos.find((photo) => photo.isMain) ||
+//       publicPhotos[0] ||
+//       null;
+
+//     // Calculate distance between both users.
+//     const distanceKm = calculateDistance(
+//       loggedInLocation,
+//       profile.location
+//     );
+
+//     const formattedProfile = {
+//       _id: profile._id,
+
+//       profileImage: mainPhoto?.url || null,
+//       photos: publicPhotos,
+
+//       age: calculateAge(profile.dateOfBirth),
+
+//       // New distance fields
+//       distanceKm,
+      
+
+//       height: profile.height || null,
+//       languages: profile.languages || [],
+
+//       gender: profile.showGenderOnProfile
+//         ? profile.gender
+//         : null,
+
+//       genderDescription: profile.showGenderOnProfile
+//         ? profile.genderDescription
+//         : null,
+
+//       showGenderOnProfile:
+//         profile.showGenderOnProfile ?? true,
+
+//       profession: profile.profession,
+//       customProfession: profile.customProfession,
+
+//       orientation: profile.showOrientationOnProfile
+//         ? profile.orientation
+//         : null,
+
+//       customOrientation:
+//         profile.showOrientationOnProfile
+//           ? profile.customOrientation
+//           : null,
+
+//       showOrientationOnProfile:
+//         profile.showOrientationOnProfile ?? true,
+
+//       meetzoGoal: profile.meetzoGoal,
+//       relationshipPace: profile.relationshipPace,
+
+//       smoking: profile.smoking,
+//       drinking: profile.drinking,
+//       fitness: profile.fitness,
+//       pets: profile.pets,
+
+//       selfDescription: profile.selfDescription || [],
+//       interests: profile.interests || [],
+
+//       religion: profile.religion,
+//       customReligion: profile.customReligion,
+
+//       idealWeekend: profile.idealWeekend || [],
+//       values: profile.values || [],
+
+//       bio: profile.showBioOnProfile
+//         ? profile.bio
+//         : null,
+
+//       showBioOnProfile:
+//         profile.showBioOnProfile ?? true,
+
+//       education: profile.education,
+//       college: profile.college,
+//       company: profile.company,
+//       jobTitle: profile.jobTitle,
+
+//       city: profile.city,
+//       hometown: profile.hometown,
+
+//       isKycVerified:
+//         profile.isKycVerified === true,
+
+//       isFaceVerified:
+//         profile.isFaceVerified === true,
+
+//       isProfileCompleted:
+//         profile.isProfileCompleted === true,
+//     };
+
+//     profileMap.set(userKey, formattedProfile);
+//   }
+
+//   // ========================================
+//   // FORMAT RESPONSE
+//   // ========================================
+
+//   const data = likes
+//     .map((like) => {
+//       const senderId = like.fromUserId.toString();
+
+//       const user = userMap.get(senderId);
+//       const profile = profileMap.get(senderId);
+
+//       if (!user || !profile) return null;
+
+//       return {
+//         likeId: like._id,
+//         likedAt: like.createdAt,
+//         isLiked: true,
+
+//         user,
+//         profile,
+//       };
+//     })
+//     .filter(Boolean);
+
+//   return {
+//     data,
+//     pagination,
+//   };
+// };
+
+
+
 export const getLikedProfilesService = async ({
   userId,
   page = 1,
@@ -765,14 +1149,39 @@ export const getLikedProfilesService = async ({
   );
 
   // ========================================
+  // GET USERS LIKED BY LOGGED-IN USER
+  // ========================================
+
+  const outgoingLikes = await LikeModel.find({
+    fromUserId: loggedInUserId,
+    status: "ACTIVE",
+  })
+    .select("toUserId")
+    .lean();
+
+  const outgoingLikedUserIds = outgoingLikes.map(
+    (like) => like.toUserId
+  );
+
+  // ========================================
+  // EXCLUDE MATCHED + MUTUALLY LIKED USERS
+  // ========================================
+
+  const excludedUserIds = [
+    ...matchedUserIds,
+    ...outgoingLikedUserIds,
+  ];
+
+  // ========================================
   // RECEIVED LIKES FILTER
+  // ONLY ONE-SIDED LIKES
   // ========================================
 
   const baseFilter = {
     toUserId: loggedInUserId,
     status: "ACTIVE",
     fromUserId: {
-      $nin: matchedUserIds,
+      $nin: excludedUserIds,
     },
   };
 
@@ -813,6 +1222,7 @@ export const getLikedProfilesService = async ({
     ...baseFilter,
     fromUserId: {
       $in: eligibleSenderIds,
+      $nin: excludedUserIds,
     },
   };
 
@@ -840,14 +1250,8 @@ export const getLikedProfilesService = async ({
     totalPages,
     hasNextPage: currentPage < totalPages,
     hasPreviousPage: currentPage > 1,
-    nextPage:
-      currentPage < totalPages
-        ? currentPage + 1
-        : null,
-    previousPage:
-      currentPage > 1
-        ? currentPage - 1
-        : null,
+    nextPage: currentPage < totalPages ? currentPage + 1 : null,
+    previousPage: currentPage > 1 ? currentPage - 1 : null,
   };
 
   if (likes.length === 0) {
@@ -960,7 +1364,10 @@ export const getLikedProfilesService = async ({
       publicPhotos[0] ||
       null;
 
-    // Calculate distance between both users.
+    // ========================================
+    // CALCULATE DISTANCE
+    // ========================================
+
     const distanceKm = calculateDistance(
       loggedInLocation,
       profile.location
@@ -974,9 +1381,7 @@ export const getLikedProfilesService = async ({
 
       age: calculateAge(profile.dateOfBirth),
 
-      // New distance fields
       distanceKm,
-      
 
       height: profile.height || null,
       languages: profile.languages || [],
@@ -1081,3 +1486,4 @@ export const getLikedProfilesService = async ({
     pagination,
   };
 };
+
