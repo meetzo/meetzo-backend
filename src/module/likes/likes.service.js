@@ -141,6 +141,7 @@ const normalizePagination = ({ page = 1, limit = 20 }) => {
 //   }
 // };
 
+
 export const likeUserService = async ({ fromUserId, toUserId }) => {
   // ========================================
   // VALIDATE USER IDS
@@ -155,10 +156,6 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
 
   const fromId = new mongoose.Types.ObjectId(fromUserId);
   const toId = new mongoose.Types.ObjectId(toUserId);
-
-  // ========================================
-  // PREVENT SELF LIKE
-  // ========================================
 
   if (fromId.equals(toId)) {
     throw new ApiError(400, "You cannot like yourself");
@@ -178,7 +175,7 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
   }
 
   // ========================================
-  // SAVE OR REACTIVATE LIKE
+  // CREATE OR REACTIVATE LIKE
   // ========================================
 
   let like;
@@ -199,10 +196,9 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
         returnDocument: "after",
         setDefaultsOnInsert: true,
         runValidators: true,
-      },
+      }
     ).lean();
   } catch (error) {
-    // Handle concurrent requests inserting the same Like.
     if (error?.code !== 11000) {
       throw error;
     }
@@ -220,7 +216,7 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
       {
         returnDocument: "after",
         runValidators: true,
-      },
+      }
     ).lean();
 
     if (!like) {
@@ -229,112 +225,90 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
   }
 
   // ========================================
-  // CANONICAL MATCH USER ORDER
-  // ========================================
-
-  const [user1Id, user2Id] = [fromId, toId].sort((a, b) =>
-    a.toString().localeCompare(b.toString()),
-  );
-
-  // ========================================
-  // CHECK EXISTING MATCH
-  // ========================================
-
-  let match = await MatchModel.findOne({
-    user1Id,
-    user2Id,
-    status: "ACTIVE",
-  })
-    .select("_id user1Id user2Id status")
-    .lean();
-
-  // ========================================
   // CHECK REVERSE LIKE
   // ========================================
 
-  // If both users already have an active Match,
-  // we do not need another reverse Like lookup.
-  if (!match) {
-    const reverseLike = await LikeModel.exists({
-      fromUserId: toId,
-      toUserId: fromId,
-      status: "ACTIVE",
-    });
+  const reverseLike = await LikeModel.exists({
+    fromUserId: toId,
+    toUserId: fromId,
+    status: "ACTIVE",
+  });
 
-    // ======================================
-    // CREATE MATCH WHEN MUTUAL LIKE EXISTS
-    // ======================================
+  // ========================================
+  // CREATE CHAT WHEN MUTUAL LIKE EXISTS
+  // ========================================
 
-    if (reverseLike) {
-      try {
-        match = await MatchModel.findOneAndUpdate(
-          {
-            user1Id,
-            user2Id,
+  let match = null;
+
+  if (reverseLike) {
+    const participants = [fromId, toId].sort((a, b) =>
+      a.toString().localeCompare(b.toString())
+    );
+
+    const pairKey = participants
+      .map((id) => id.toString())
+      .join("_");
+
+    try {
+      match = await MatchModel.findOneAndUpdate(
+        { pairKey },
+        {
+          $setOnInsert: {
+            pairKey,
+            participants,
+            participantStates: participants.map((id) => ({
+              userId: id,
+              unreadCount: 0,
+              lastReadMessageId: null,
+              lastReadAt: null,
+              isArchived: false,
+              isDeleted: false,
+              deletedAt: null,
+            })),
+            isActive: true,
           },
-          {
-            $set: {
-              status: "ACTIVE",
-            },
-          },
-          {
-            upsert: true,
-            returnDocument: "after",
-            setDefaultsOnInsert: true,
-            runValidators: true,
-          },
-        )
-          .select("_id user1Id user2Id status")
-          .lean();
-      } catch (error) {
-        if (error?.code !== 11000) {
-          throw error;
+        },
+        {
+          upsert: true,
+          returnDocument: "after",
+          setDefaultsOnInsert: true,
+          runValidators: true,
         }
+      ).lean();
+    } catch (error) {
+      if (error?.code !== 11000) {
+        throw error;
+      }
 
-        // Another request created the same Match.
-        match = await MatchModel.findOneAndUpdate(
-          {
-            user1Id,
-            user2Id,
-          },
-          {
-            $set: {
-              status: "ACTIVE",
-            },
-          },
-          {
-            returnDocument: "after",
-            runValidators: true,
-          },
-        )
-          .select("_id user1Id user2Id status")
-          .lean();
+      // Concurrent request already created the chat.
+      match = await MatchModel.findOne({ pairKey }).lean();
 
-        if (!match) {
-          throw new ApiError(409, "Unable to retrieve mutual match");
-        }
+      if (!match) {
+        throw new ApiError(
+          409,
+          "Unable to create mutual match"
+        );
       }
     }
   }
 
   // ========================================
-  // FORMAT RESPONSE FOR FLUTTER
+  // RESPONSE FOR FLUTTER
   // ========================================
 
-  const isMatch = match?.status === "ACTIVE";
+  const isMatch = Boolean(reverseLike && match);
 
   return {
     ...like,
 
     isLiked: true,
-
     isMatch,
 
     matchId: isMatch ? match._id : null,
-
     matchedUserId: isMatch ? toId : null,
   };
 };
+
 
 /**
  * -------------------------------------------------------
