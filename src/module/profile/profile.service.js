@@ -85,6 +85,9 @@ const normalizeOptionalString = (value) => {
   return normalizedValue || null;
 };
 
+// 2 commented service here...
+
+
 // export const saveProfileDetailsService = async ({
 //   userId,
 //   profileData = {},
@@ -341,6 +344,375 @@ const normalizeOptionalString = (value) => {
 // };
 
 
+// export const saveProfileDetailsService = async ({
+//   userId,
+//   profileData = {},
+// }) => {
+//   if (!userId) {
+//     throw new ApiError(401, "Authentication is required");
+//   }
+
+//   const user = await userModel
+//     .findById(userId)
+//     .select("_id isBlocked");
+
+//   if (!user) {
+//     throw new ApiError(404, "User not found");
+//   }
+
+//   if (user.isBlocked) {
+//     throw new ApiError(403, "Your account has been blocked");
+//   }
+
+//   const {
+//     dateOfBirth,
+//     height,
+//     languages,
+
+//     gender,
+//     genderDescription,
+//     showGenderOnProfile,
+
+//     profession,
+//     customProfession,
+
+//     orientation,
+//     customOrientation,
+//     showOrientationOnProfile,
+
+//     meetzoGoal,
+//     relationshipPace,
+
+//     smoking,
+//     drinking,
+//     fitness,
+//     pets,
+
+//     selfDescription,
+//     interests,
+
+//     religion,
+//     customReligion,
+
+//     idealWeekend,
+//     values,
+//   } = profileData;
+
+//   const requiredFields = {
+//     dateOfBirth,
+//     height,
+//     languages,
+//     gender,
+//     profession,
+//     orientation,
+//     meetzoGoal,
+//     relationshipPace,
+//     smoking,
+//     drinking,
+//     fitness,
+//     pets,
+//     selfDescription,
+//     interests,
+//     religion,
+//     idealWeekend,
+//     values,
+//   };
+
+//   const missingField = Object.entries(requiredFields).find(
+//     ([, value]) =>
+//       value === undefined ||
+//       value === null ||
+//       value === "" ||
+//       (Array.isArray(value) && value.length === 0)
+//   );
+
+//   if (missingField) {
+//     throw new ApiError(
+//       400,
+//       `${missingField[0]} is required`
+//     );
+//   }
+
+//   const age = calculateAge(dateOfBirth);
+
+//   if (age < 18) {
+//     throw new ApiError(
+//       400,
+//       "You must be at least 18 years old"
+//     );
+//   }
+
+//   if (
+//     typeof height !== "object" ||
+//     height === null ||
+//     Array.isArray(height)
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Height must contain value and unit"
+//     );
+//   }
+
+//   const heightValue = Number(height.value);
+
+//   const heightUnit = String(height.unit || "")
+//     .trim()
+//     .toUpperCase();
+
+//   if (
+//     !Number.isFinite(heightValue) ||
+//     heightValue <= 0 ||
+//     !["CM", "FT", "IN"].includes(heightUnit)
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Valid height value and unit are required"
+//     );
+//   }
+
+//   const normalizedLanguages =
+//     normalizeArray(languages);
+
+//   const normalizedSelfDescription =
+//     normalizeArray(selfDescription);
+
+//   const normalizedInterests =
+//     normalizeArray(interests);
+
+//   const normalizedIdealWeekend =
+//     normalizeArray(idealWeekend);
+
+//   const normalizedValues =
+//     normalizeArray(values);
+
+//   if (normalizedLanguages.length === 0) {
+//     throw new ApiError(
+//       400,
+//       "At least one language is required"
+//     );
+//   }
+
+//   if (normalizedSelfDescription.length < 1) {
+//     throw new ApiError(
+//       400,
+//       "Select at least one personality trait"
+//     );
+//   }
+
+//   if (
+//     normalizedInterests.length < 1 
+  
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Select at least 1 intrest"
+//     );
+//   }
+
+//   if (
+//     normalizedIdealWeekend.length < 1 
+    
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Select at least 1 weekend preference"
+//     );
+//   }
+
+//   if (
+//     normalizedValues.length < 1
+    
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Select at least 1 value"
+//     );
+//   }
+
+//   const normalizedGenderDescription =
+//     normalizeOptionalString(genderDescription);
+
+//   const normalizedCustomProfession =
+//     normalizeOptionalString(customProfession);
+
+//   const normalizedCustomOrientation =
+//     normalizeOptionalString(customOrientation);
+
+//   const normalizedCustomReligion =
+//     normalizeOptionalString(customReligion);
+
+//   if (
+//     normalizedGenderDescription &&
+//     normalizedGenderDescription.length > 200
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Gender description cannot exceed 200 characters"
+//     );
+//   }
+
+//   if (
+//     profession === "OTHER" &&
+//     !normalizedCustomProfession
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Custom profession is required"
+//     );
+//   }
+
+//   if (
+//     normalizedCustomProfession &&
+//     normalizedCustomProfession.length > 100
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Custom profession cannot exceed 100 characters"
+//     );
+//   }
+
+//   if (
+//     orientation === "OTHER" &&
+//     !normalizedCustomOrientation
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Custom orientation is required"
+//     );
+//   }
+
+//   if (
+//     religion === "OTHER" &&
+//     !normalizedCustomReligion
+//   ) {
+//     throw new ApiError(
+//       400,
+//       "Custom religion is required"
+//     );
+//   }
+
+//   const normalizedData = {
+//     dateOfBirth: new Date(dateOfBirth),
+
+//     height: {
+//       value: heightValue,
+//       unit: heightUnit,
+//     },
+
+//     languages: normalizedLanguages,
+
+//     gender,
+
+//     genderDescription:
+//       normalizedGenderDescription,
+
+//     showGenderOnProfile:
+//       showGenderOnProfile ?? true,
+
+//     profession,
+
+//     customProfession:
+//       profession === "OTHER"
+//         ? normalizedCustomProfession
+//         : null,
+
+//     orientation,
+
+//     customOrientation:
+//       orientation === "OTHER"
+//         ? normalizedCustomOrientation
+//         : null,
+
+//     showOrientationOnProfile:
+//       showOrientationOnProfile ?? true,
+
+//     meetzoGoal,
+//     relationshipPace,
+
+//     smoking,
+//     drinking,
+//     fitness,
+//     pets,
+
+//     selfDescription:
+//       normalizedSelfDescription,
+
+//     interests:
+//       normalizedInterests,
+
+//     religion,
+
+//     customReligion:
+//       religion === "OTHER"
+//         ? normalizedCustomReligion
+//         : null,
+
+//     idealWeekend:
+//       normalizedIdealWeekend,
+
+//     values:
+//       normalizedValues,
+
+//     isProfileCompleted: true,
+//     completedAt: new Date(),
+//   };
+
+//   const profile = await profileModel.findOneAndUpdate(
+//     {
+//       userId,
+//     },
+//     {
+//       $set: normalizedData,
+
+//       $setOnInsert: {
+//         userId,
+//         location: null,
+//         locationUpdatedAt: null,
+//       },
+//     },
+//     {
+//       new: true,
+//       runValidators: true,
+//       upsert: true,
+//       setDefaultsOnInsert: false,
+//     }
+//   );
+
+//   return profile;
+// };
+
+
+// export const getProfileService = async ({ userId }) => {
+//   if (!userId) {
+//     throw new ApiError(401, "Authentication is required");
+//   }
+
+//   const user = await userModel
+//     .findById(userId)
+//     .select("name email phone role isVerified isBlocked createdAt updatedAt")
+//     .lean();
+
+//   if (!user) {
+//     throw new ApiError(404, "User not found");
+//   }
+
+//   if (user.isBlocked) {
+//     throw new ApiError(403, "Your account has been blocked");
+//   }
+
+//   const profile = await profileModel.findOne({ userId }).lean();
+
+//   if (!profile) {
+//     throw new ApiError(404, "Profile not found");
+//   }
+
+//   return {
+//     user,
+//     profile,
+//   };
+// };
+
+
 export const saveProfileDetailsService = async ({
   userId,
   profileData = {},
@@ -439,6 +811,10 @@ export const saveProfileDetailsService = async ({
     );
   }
 
+  // ==========================================
+  // HEIGHT VALIDATION
+  // ==========================================
+
   if (
     typeof height !== "object" ||
     height === null ||
@@ -466,6 +842,26 @@ export const saveProfileDetailsService = async ({
       "Valid height value and unit are required"
     );
   }
+
+  // ==========================================
+  // HEIGHT CONVERSION - ALWAYS SAVE IN FEET
+  // ==========================================
+
+  let heightInFeet;
+
+  if (heightUnit === "CM") {
+    heightInFeet = heightValue / 30.48;
+  } else if (heightUnit === "IN") {
+    heightInFeet = heightValue / 12;
+  } else {
+    heightInFeet = heightValue;
+  }
+
+  heightInFeet = Math.round(heightInFeet * 100) / 100;
+
+  // ==========================================
+  // NORMALIZE ARRAYS
+  // ==========================================
 
   const normalizedLanguages =
     normalizeArray(languages);
@@ -497,8 +893,7 @@ export const saveProfileDetailsService = async ({
   }
 
   if (
-    normalizedInterests.length < 1 
-  
+    normalizedInterests.length < 1
   ) {
     throw new ApiError(
       400,
@@ -507,8 +902,7 @@ export const saveProfileDetailsService = async ({
   }
 
   if (
-    normalizedIdealWeekend.length < 1 
-    
+    normalizedIdealWeekend.length < 1
   ) {
     throw new ApiError(
       400,
@@ -518,7 +912,6 @@ export const saveProfileDetailsService = async ({
 
   if (
     normalizedValues.length < 1
-    
   ) {
     throw new ApiError(
       400,
@@ -591,9 +984,13 @@ export const saveProfileDetailsService = async ({
   const normalizedData = {
     dateOfBirth: new Date(dateOfBirth),
 
+    // ========================================
+    // HEIGHT ALWAYS SAVED IN FEET
+    // ========================================
+
     height: {
-      value: heightValue,
-      unit: heightUnit,
+      value: heightInFeet,
+      unit: "FT",
     },
 
     languages: normalizedLanguages,
@@ -677,40 +1074,6 @@ export const saveProfileDetailsService = async ({
 
   return profile;
 };
-
-
-// export const getProfileService = async ({ userId }) => {
-//   if (!userId) {
-//     throw new ApiError(401, "Authentication is required");
-//   }
-
-//   const user = await userModel
-//     .findById(userId)
-//     .select("name email phone role isVerified isBlocked createdAt updatedAt")
-//     .lean();
-
-//   if (!user) {
-//     throw new ApiError(404, "User not found");
-//   }
-
-//   if (user.isBlocked) {
-//     throw new ApiError(403, "Your account has been blocked");
-//   }
-
-//   const profile = await profileModel.findOne({ userId }).lean();
-
-//   if (!profile) {
-//     throw new ApiError(404, "Profile not found");
-//   }
-
-//   return {
-//     user,
-//     profile,
-//   };
-// };
-
-
-
 
 
 export const getProfileService = async ({ userId }) => {
