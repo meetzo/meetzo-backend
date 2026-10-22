@@ -9,13 +9,10 @@ import multer from "multer";
 import likeRoute from "./module/likes/likes.routes.js";
 import chatRoutes from "./module/chat/chat.routes.js";
 import discoveryRoutes  from "./module/discovery/discovery.routes.js"
-<<<<<<< HEAD
 import idsRoutes from "./module/aadhar/ids.routes.js";
 import subscriptionRoutes from "./module/subscription/subscription.routes.js"
-=======
 import reportRoutes from "./module/reports/report.routes.js";
 import blockUserRoutes from "./module/block/blockuser.routes.js";
->>>>>>> origin/secondary
 import "dotenv/config";
 
 const app = express();
