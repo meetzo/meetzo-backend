@@ -9,8 +9,13 @@ import multer from "multer";
 import likeRoute from "./module/likes/likes.routes.js";
 import chatRoutes from "./module/chat/chat.routes.js";
 import discoveryRoutes  from "./module/discovery/discovery.routes.js"
+<<<<<<< HEAD
 import idsRoutes from "./module/aadhar/ids.routes.js";
 import subscriptionRoutes from "./module/subscription/subscription.routes.js"
+=======
+import reportRoutes from "./module/reports/report.routes.js";
+import blockUserRoutes from "./module/block/blockuser.routes.js";
+>>>>>>> origin/secondary
 import "dotenv/config";
 
 const app = express();
@@ -40,6 +45,9 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/discovery", discoveryRoutes);
 app.use("/api/kyc", idsRoutes);
 app.use("/api/subscription", subscriptionRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/block", blockUserRoutes);
+
 
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
