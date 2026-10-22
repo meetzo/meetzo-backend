@@ -40,105 +40,300 @@ const normalizePagination = ({ page = 1, limit = 20 }) => {
  * LIKE USER
  * -------------------------------------------------------
  */
+// export const likeUserService = async ({ fromUserId, toUserId }) => {
+//   // Validate target user id
+//   if (!mongoose.Types.ObjectId.isValid(toUserId)) {
+//     throw new ApiError(400, "Invalid user id");
+//   }
+
+//   // User cannot like themselves
+//   if (fromUserId.toString() === toUserId.toString()) {
+//     throw new ApiError(400, "You cannot like yourself");
+//   }
+
+//   /**
+//    * Check target user exists
+//    * and is not blocked
+//    */
+//   const targetUser = await userModel.exists({
+//     _id: toUserId,
+
+//     isBlocked: {
+//       $ne: true,
+//     },
+//   });
+
+//   if (!targetUser) {
+//     throw new ApiError(404, "User not found");
+//   }
+
+//   /**
+//    * We already have unique index:
+//    *
+//    * fromUserId + toUserId
+//    *
+//    * So:
+//    *
+//    * No existing like
+//    *      ↓
+//    * Create ACTIVE like
+//    *
+//    * Existing REMOVED like
+//    *      ↓
+//    * Change back to ACTIVE
+//    *
+//    * Existing ACTIVE like
+//    *      ↓
+//    * Keep ACTIVE
+//    */
+//   try {
+//     const like = await LikeModel.findOneAndUpdate(
+//       {
+//         fromUserId,
+//         toUserId,
+//       },
+
+//       {
+//         $set: {
+//           status: "ACTIVE",
+//         },
+//       },
+
+//       {
+//         new: true,
+//         upsert: true,
+//         setDefaultsOnInsert: true,
+//       },
+//     ).lean();
+
+//     return like;
+//   } catch (error) {
+//     /**
+//      * Rare race condition:
+//      *
+//      * Two like requests may arrive at
+//      * almost exactly the same time.
+//      *
+//      * Unique index could cause E11000.
+//      */
+//     if (error?.code === 11000) {
+//       const existingLike = await LikeModel.findOneAndUpdate(
+//         {
+//           fromUserId,
+//           toUserId,
+//         },
+//         {
+//           $set: {
+//             status: "ACTIVE",
+//           },
+//         },
+//         {
+//           new: true,
+//         },
+//       ).lean();
+
+//       if (existingLike) {
+//         return existingLike;
+//       }
+//     }
+
+//     throw error;
+//   }
+// };
+
 export const likeUserService = async ({ fromUserId, toUserId }) => {
-  // Validate target user id
-  if (!mongoose.Types.ObjectId.isValid(toUserId)) {
+  // ========================================
+  // VALIDATE USER IDS
+  // ========================================
+
+  if (
+    !mongoose.Types.ObjectId.isValid(fromUserId) ||
+    !mongoose.Types.ObjectId.isValid(toUserId)
+  ) {
     throw new ApiError(400, "Invalid user id");
   }
 
-  // User cannot like themselves
-  if (fromUserId.toString() === toUserId.toString()) {
+  const fromId = new mongoose.Types.ObjectId(fromUserId);
+  const toId = new mongoose.Types.ObjectId(toUserId);
+
+  // ========================================
+  // PREVENT SELF LIKE
+  // ========================================
+
+  if (fromId.equals(toId)) {
     throw new ApiError(400, "You cannot like yourself");
   }
 
-  /**
-   * Check target user exists
-   * and is not blocked
-   */
-  const targetUser = await userModel.exists({
-    _id: toUserId,
+  // ========================================
+  // CHECK TARGET USER
+  // ========================================
 
-    isBlocked: {
-      $ne: true,
-    },
+  const targetUser = await userModel.exists({
+    _id: toId,
+    isBlocked: { $ne: true },
   });
 
   if (!targetUser) {
     throw new ApiError(404, "User not found");
   }
 
-  /**
-   * We already have unique index:
-   *
-   * fromUserId + toUserId
-   *
-   * So:
-   *
-   * No existing like
-   *      ↓
-   * Create ACTIVE like
-   *
-   * Existing REMOVED like
-   *      ↓
-   * Change back to ACTIVE
-   *
-   * Existing ACTIVE like
-   *      ↓
-   * Keep ACTIVE
-   */
-  try {
-    const like = await LikeModel.findOneAndUpdate(
-      {
-        fromUserId,
-        toUserId,
-      },
+  // ========================================
+  // SAVE OR REACTIVATE LIKE
+  // ========================================
 
+  let like;
+
+  try {
+    like = await LikeModel.findOneAndUpdate(
+      {
+        fromUserId: fromId,
+        toUserId: toId,
+      },
       {
         $set: {
           status: "ACTIVE",
         },
       },
-
       {
-        new: true,
         upsert: true,
+        returnDocument: "after",
         setDefaultsOnInsert: true,
+        runValidators: true,
+      },
+    ).lean();
+  } catch (error) {
+    // Handle concurrent requests inserting the same Like.
+    if (error?.code !== 11000) {
+      throw error;
+    }
+
+    like = await LikeModel.findOneAndUpdate(
+      {
+        fromUserId: fromId,
+        toUserId: toId,
+      },
+      {
+        $set: {
+          status: "ACTIVE",
+        },
+      },
+      {
+        returnDocument: "after",
+        runValidators: true,
       },
     ).lean();
 
-    return like;
-  } catch (error) {
-    /**
-     * Rare race condition:
-     *
-     * Two like requests may arrive at
-     * almost exactly the same time.
-     *
-     * Unique index could cause E11000.
-     */
-    if (error?.code === 11000) {
-      const existingLike = await LikeModel.findOneAndUpdate(
-        {
-          fromUserId,
-          toUserId,
-        },
-        {
-          $set: {
-            status: "ACTIVE",
-          },
-        },
-        {
-          new: true,
-        },
-      ).lean();
+    if (!like) {
+      throw new ApiError(409, "Unable to process like");
+    }
+  }
 
-      if (existingLike) {
-        return existingLike;
+  // ========================================
+  // CANONICAL MATCH USER ORDER
+  // ========================================
+
+  const [user1Id, user2Id] = [fromId, toId].sort((a, b) =>
+    a.toString().localeCompare(b.toString()),
+  );
+
+  // ========================================
+  // CHECK EXISTING MATCH
+  // ========================================
+
+  let match = await MatchModel.findOne({
+    user1Id,
+    user2Id,
+    status: "ACTIVE",
+  })
+    .select("_id user1Id user2Id status")
+    .lean();
+
+  // ========================================
+  // CHECK REVERSE LIKE
+  // ========================================
+
+  // If both users already have an active Match,
+  // we do not need another reverse Like lookup.
+  if (!match) {
+    const reverseLike = await LikeModel.exists({
+      fromUserId: toId,
+      toUserId: fromId,
+      status: "ACTIVE",
+    });
+
+    // ======================================
+    // CREATE MATCH WHEN MUTUAL LIKE EXISTS
+    // ======================================
+
+    if (reverseLike) {
+      try {
+        match = await MatchModel.findOneAndUpdate(
+          {
+            user1Id,
+            user2Id,
+          },
+          {
+            $set: {
+              status: "ACTIVE",
+            },
+          },
+          {
+            upsert: true,
+            returnDocument: "after",
+            setDefaultsOnInsert: true,
+            runValidators: true,
+          },
+        )
+          .select("_id user1Id user2Id status")
+          .lean();
+      } catch (error) {
+        if (error?.code !== 11000) {
+          throw error;
+        }
+
+        // Another request created the same Match.
+        match = await MatchModel.findOneAndUpdate(
+          {
+            user1Id,
+            user2Id,
+          },
+          {
+            $set: {
+              status: "ACTIVE",
+            },
+          },
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        )
+          .select("_id user1Id user2Id status")
+          .lean();
+
+        if (!match) {
+          throw new ApiError(409, "Unable to retrieve mutual match");
+        }
       }
     }
-
-    throw error;
   }
+
+  // ========================================
+  // FORMAT RESPONSE FOR FLUTTER
+  // ========================================
+
+  const isMatch = match?.status === "ACTIVE";
+
+  return {
+    ...like,
+
+    isLiked: true,
+
+    isMatch,
+
+    matchId: isMatch ? match._id : null,
+
+    matchedUserId: isMatch ? toId : null,
+  };
 };
 
 /**
@@ -622,11 +817,6 @@ export const getSentLikesCountService = async ({ userId }) => {
 //   };
 // };
 
-
-
-
-
-
 // recieved like for user
 
 const calculateAge = (dateOfBirth) => {
@@ -672,7 +862,7 @@ const calculateDistance = (location1, location2) => {
 
   if (
     ![lon1, lat1, lon2, lat2].every(
-      (value) => typeof value === "number" && Number.isFinite(value)
+      (value) => typeof value === "number" && Number.isFinite(value),
     ) ||
     Math.abs(lon1) > 180 ||
     Math.abs(lon2) > 180 ||
@@ -696,9 +886,10 @@ const calculateDistance = (location1, location2) => {
       Math.sin(longitudeDifference / 2) ** 2;
 
   const c =
-    2 * Math.atan2(
+    2 *
+    Math.atan2(
       Math.sqrt(Math.max(0, Math.min(1, a))),
-      Math.sqrt(Math.max(0, 1 - a))
+      Math.sqrt(Math.max(0, 1 - a)),
     );
 
   const distance = earthRadiusKm * c;
@@ -981,7 +1172,6 @@ const calculateDistance = (location1, location2) => {
 
 //       // New distance fields
 //       distanceKm,
-      
 
 //       height: profile.height || null,
 //       languages: profile.languages || [],
@@ -1087,8 +1277,6 @@ const calculateDistance = (location1, location2) => {
 //   };
 // };
 
-
-
 export const getLikedProfilesService = async ({
   userId,
   page = 1,
@@ -1104,10 +1292,7 @@ export const getLikedProfilesService = async ({
 
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
 
-  const pageLimit = Math.min(
-    100,
-    Math.max(1, parseInt(limit, 10) || 20)
-  );
+  const pageLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
   const skip = (currentPage - 1) * pageLimit;
 
@@ -1134,10 +1319,7 @@ export const getLikedProfilesService = async ({
 
   const matches = await MatchModel.find({
     status: "ACTIVE",
-    $or: [
-      { user1Id: loggedInUserId },
-      { user2Id: loggedInUserId },
-    ],
+    $or: [{ user1Id: loggedInUserId }, { user2Id: loggedInUserId }],
   })
     .select("user1Id user2Id")
     .lean();
@@ -1145,7 +1327,7 @@ export const getLikedProfilesService = async ({
   const matchedUserIds = matches.map((match) =>
     match.user1Id.toString() === loggedInUserId.toString()
       ? match.user2Id
-      : match.user1Id
+      : match.user1Id,
   );
 
   // ========================================
@@ -1159,18 +1341,13 @@ export const getLikedProfilesService = async ({
     .select("toUserId")
     .lean();
 
-  const outgoingLikedUserIds = outgoingLikes.map(
-    (like) => like.toUserId
-  );
+  const outgoingLikedUserIds = outgoingLikes.map((like) => like.toUserId);
 
   // ========================================
   // EXCLUDE MATCHED + MUTUALLY LIKED USERS
   // ========================================
 
-  const excludedUserIds = [
-    ...matchedUserIds,
-    ...outgoingLikedUserIds,
-  ];
+  const excludedUserIds = [...matchedUserIds, ...outgoingLikedUserIds];
 
   // ========================================
   // RECEIVED LIKES FILTER
@@ -1189,10 +1366,7 @@ export const getLikedProfilesService = async ({
   // FIND ELIGIBLE SENDERS
   // ========================================
 
-  const senderIds = await LikeModel.distinct(
-    "fromUserId",
-    baseFilter
-  );
+  const senderIds = await LikeModel.distinct("fromUserId", baseFilter);
 
   const availableUsers = await userModel
     .find({
@@ -1202,9 +1376,7 @@ export const getLikedProfilesService = async ({
     .select("_id")
     .lean();
 
-  const availableUserIds = availableUsers.map(
-    (user) => user._id
-  );
+  const availableUserIds = availableUsers.map((user) => user._id);
 
   const availableProfiles = await profileModel
     .find({
@@ -1214,9 +1386,7 @@ export const getLikedProfilesService = async ({
     .select("userId")
     .lean();
 
-  const eligibleSenderIds = availableProfiles.map(
-    (profile) => profile.userId
-  );
+  const eligibleSenderIds = availableProfiles.map((profile) => profile.userId);
 
   const finalFilter = {
     ...baseFilter,
@@ -1265,9 +1435,7 @@ export const getLikedProfilesService = async ({
   // FETCH USERS WHO LIKED ME
   // ========================================
 
-  const likedByUserIds = likes.map(
-    (like) => like.fromUserId
-  );
+  const likedByUserIds = likes.map((like) => like.fromUserId);
 
   const [users, profiles] = await Promise.all([
     userModel
@@ -1324,7 +1492,7 @@ export const getLikedProfilesService = async ({
           "isKycVerified",
           "isFaceVerified",
           "isProfileCompleted",
-        ].join(" ")
+        ].join(" "),
       )
       .lean(),
   ]);
@@ -1360,18 +1528,13 @@ export const getLikedProfilesService = async ({
       }));
 
     const mainPhoto =
-      publicPhotos.find((photo) => photo.isMain) ||
-      publicPhotos[0] ||
-      null;
+      publicPhotos.find((photo) => photo.isMain) || publicPhotos[0] || null;
 
     // ========================================
     // CALCULATE DISTANCE
     // ========================================
 
-    const distanceKm = calculateDistance(
-      loggedInLocation,
-      profile.location
-    );
+    const distanceKm = calculateDistance(loggedInLocation, profile.location);
 
     const formattedProfile = {
       _id: profile._id,
@@ -1386,16 +1549,13 @@ export const getLikedProfilesService = async ({
       height: profile.height || null,
       languages: profile.languages || [],
 
-      gender: profile.showGenderOnProfile
-        ? profile.gender
-        : null,
+      gender: profile.showGenderOnProfile ? profile.gender : null,
 
       genderDescription: profile.showGenderOnProfile
         ? profile.genderDescription
         : null,
 
-      showGenderOnProfile:
-        profile.showGenderOnProfile ?? true,
+      showGenderOnProfile: profile.showGenderOnProfile ?? true,
 
       profession: profile.profession,
       customProfession: profile.customProfession,
@@ -1404,13 +1564,11 @@ export const getLikedProfilesService = async ({
         ? profile.orientation
         : null,
 
-      customOrientation:
-        profile.showOrientationOnProfile
-          ? profile.customOrientation
-          : null,
+      customOrientation: profile.showOrientationOnProfile
+        ? profile.customOrientation
+        : null,
 
-      showOrientationOnProfile:
-        profile.showOrientationOnProfile ?? true,
+      showOrientationOnProfile: profile.showOrientationOnProfile ?? true,
 
       meetzoGoal: profile.meetzoGoal,
       relationshipPace: profile.relationshipPace,
@@ -1429,12 +1587,9 @@ export const getLikedProfilesService = async ({
       idealWeekend: profile.idealWeekend || [],
       values: profile.values || [],
 
-      bio: profile.showBioOnProfile
-        ? profile.bio
-        : null,
+      bio: profile.showBioOnProfile ? profile.bio : null,
 
-      showBioOnProfile:
-        profile.showBioOnProfile ?? true,
+      showBioOnProfile: profile.showBioOnProfile ?? true,
 
       education: profile.education,
       college: profile.college,
@@ -1444,14 +1599,11 @@ export const getLikedProfilesService = async ({
       city: profile.city,
       hometown: profile.hometown,
 
-      isKycVerified:
-        profile.isKycVerified === true,
+      isKycVerified: profile.isKycVerified === true,
 
-      isFaceVerified:
-        profile.isFaceVerified === true,
+      isFaceVerified: profile.isFaceVerified === true,
 
-      isProfileCompleted:
-        profile.isProfileCompleted === true,
+      isProfileCompleted: profile.isProfileCompleted === true,
     };
 
     profileMap.set(userKey, formattedProfile);
@@ -1486,4 +1638,3 @@ export const getLikedProfilesService = async ({
     pagination,
   };
 };
-

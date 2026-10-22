@@ -12,26 +12,56 @@ import {
 /**
  * LIKE USER
  */
+// export const likeUserController = async (req, res, next) => {
+//   try {
+//     const fromUserId = req.user._id;
+
+//     const { userId: toUserId } = req.params;
+
+//     const like = await likeUserService({
+//       fromUserId,
+//       toUserId,
+//     });
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "User liked successfully",
+//       data: like,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+
+
 export const likeUserController = async (req, res, next) => {
   try {
-    const fromUserId = req.user._id;
+    const fromUserId = req.user?._id || req.user?.id;
 
     const { userId: toUserId } = req.params;
 
-    const like = await likeUserService({
+    const result = await likeUserService({
       fromUserId,
       toUserId,
     });
 
     return res.status(200).json({
       success: true,
-      message: "User liked successfully",
-      data: like,
+
+      message: result.isMatch
+        ? "It's a Match!"
+        : "User liked successfully",
+
+      data: result,
     });
   } catch (error) {
     next(error);
   }
 };
+
+
+
 
 /**
  * UNLIKE USER
