@@ -15,6 +15,7 @@ import {
   editMessageController,
   deleteMessageController,
   sendChatMediaController,
+  getallchatscontroller
 } from "./chat.controller.js";
 
 const router = express.Router();
@@ -23,8 +24,9 @@ const router = express.Router();
 router.use(isAuthenticated, requireChatAuth);
 
 // Access creates/retrieves a matched pair; inbox/history are per-user views.
-router.post("/access", accessChatController);
+router.post("/access/:targetUserId", accessChatController);
 router.get("/", getUserChatsController);
+router.get("/feed", getallchatscontroller)
 // Legacy multipart endpoint retained; normal message sends are text-only.
 router.post("/:chatId/media", uploadChatMedia, sendChatMediaController);
 router.get("/:chatId", getChatByIdController);

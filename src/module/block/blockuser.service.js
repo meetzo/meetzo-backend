@@ -7,6 +7,9 @@ export const blockUserservice = async (blockedID, blockerID) => {
     if (!user) {
        return { message: "User not found" };
     }
+    if (String(blockedID) === String(blockerID)) {
+        throw new Error("You cannot block yourself");
+    }
 
     // Check if the user is already blocked
     const existingBlockedUser = await BlockedUser.findOne({ 

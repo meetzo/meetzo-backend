@@ -13,6 +13,7 @@ import {
   editMessageService,
   getMessageViewersService,
   deleteMessageService,
+  getChatFeedService,
 } from "./chat.service.js";
 import { emitChatEvent, emitNewMessage } from "./chat.events.js";
 import { deleteChatMediaService, uploadChatMediaService } from "./chatMedia.service.js";
@@ -22,7 +23,7 @@ import ApiError from "../../utils/api.error.js";
 // and authorization. Errors go to the application's shared error middleware.
 export const accessChatController = async (req, res, next) => {
   try {
-    const data = await accessChatService({ userId: req.user._id, targetUserId: req.body?.targetUserId });
+    const data = await accessChatService({ userId: req.user._id, targetUserId: req.params.targetUserId });
     res.status(200).json({ success: true, message: "Chat created successfully", data });
     console.log(data);
   } catch (error) { next(error); }
@@ -39,6 +40,17 @@ export const getUserChatsController = async (req, res, next) => {
     });
     res.status(200).json({ success: true, message: "Chats fetched successfully",
       data: result.chats, pagination: result.pagination });
+  } catch (error) { next(error); }
+};
+
+// Personal (direct) chats feed, sorted by latest activity. Groups are listed separately.
+export const getallchatscontroller = async (req, res, next) => {
+  try {
+    const result = await getChatFeedService({
+      userId: req.user._id, page: req.query.page, limit: req.query.limit,
+    });
+    res.status(200).json({ success: true, message: "Chats fetched successfully",
+      data: result.items, pagination: result.pagination });
   } catch (error) { next(error); }
 };
 
@@ -91,6 +103,7 @@ export const sendChatMediaController = async (req, res, next) => {
     if (typeof caption !== "string" || caption.length > 5000) {
       throw new ApiError(400, "Caption must be 5000 characters or fewer");
     }
+    
     await assertChatParticipantService({ chatId, userId: req.user._id });
     uploadedMedia = await uploadChatMediaService({ file: req.file });
     const result = await sendMessageService({
