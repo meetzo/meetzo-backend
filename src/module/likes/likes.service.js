@@ -142,6 +142,7 @@ const normalizePagination = ({ page = 1, limit = 20 }) => {
 // };
 
 
+
 export const likeUserService = async ({ fromUserId, toUserId }) => {
   // ========================================
   // VALIDATE USER IDS
@@ -293,10 +294,66 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
   }
 
   // ========================================
-  // RESPONSE FOR FLUTTER
+  // CHECK MATCH STATUS
   // ========================================
 
   const isMatch = Boolean(reverseLike && match);
+
+  // ========================================
+  // GET BOTH USERS' MAIN PUBLIC IMAGES
+  // ONLY WHEN MATCH OCCURS
+  // ========================================
+
+  let matchedImages = null;
+
+  if (isMatch) {
+    const profiles = await profileModel
+      .find({
+        userId: {
+          $in: [fromId, toId],
+        },
+      })
+      .select("userId photos")
+      .lean();
+
+    const profileMap = new Map(
+      profiles.map((profile) => [
+        profile.userId.toString(),
+        profile,
+      ])
+    );
+
+    const getMainPublicImage = (userId) => {
+      const profile = profileMap.get(userId.toString());
+
+      if (!profile) {
+        return null;
+      }
+
+      const publicPhotos = (profile.photos || [])
+        .filter((photo) => photo.visibility === "PUBLIC")
+        .sort((a, b) => a.order - b.order);
+
+      const mainPhoto =
+        publicPhotos.find((photo) => photo.isMain) ||
+        publicPhotos[0] ||
+        null;
+
+      return mainPhoto?.url || null;
+    };
+
+    matchedImages = {
+      // Logged-in user's main photo
+      loggedInUserImage: getMainPublicImage(fromId),
+
+      // Matched user's main photo
+      matchedUserImage: getMainPublicImage(toId),
+    };
+  }
+
+  // ========================================
+  // RESPONSE FOR FLUTTER
+  // ========================================
 
   return {
     ...like,
@@ -306,8 +363,12 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
 
     matchId: isMatch ? match._id : null,
     matchedUserId: isMatch ? toId : null,
+
+    // Added only for mutual matches
+    matchedImages,
   };
 };
+
 
 
 /**
