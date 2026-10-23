@@ -24,7 +24,7 @@ const router = express.Router();
 router.use(isAuthenticated, requireChatAuth);
 
 // Access creates/retrieves a matched pair; inbox/history are per-user views.
-router.post("/access/:targetUserId", accessChatController);
+router.post("/create_chat/:targetUserId", accessChatController);
 router.get("/", getUserChatsController);
 router.get("/feed", getallchatscontroller)
 // Legacy multipart endpoint retained; normal message sends are text-only.
