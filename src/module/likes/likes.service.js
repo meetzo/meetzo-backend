@@ -141,8 +141,6 @@ const normalizePagination = ({ page = 1, limit = 20 }) => {
 //   }
 // };
 
-
-
 export const likeUserService = async ({ fromUserId, toUserId }) => {
   // ========================================
   // VALIDATE USER IDS
@@ -197,7 +195,7 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
         returnDocument: "after",
         setDefaultsOnInsert: true,
         runValidators: true,
-      }
+      },
     ).lean();
   } catch (error) {
     if (error?.code !== 11000) {
@@ -217,7 +215,7 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
       {
         returnDocument: "after",
         runValidators: true,
-      }
+      },
     ).lean();
 
     if (!like) {
@@ -243,12 +241,10 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
 
   if (reverseLike) {
     const participants = [fromId, toId].sort((a, b) =>
-      a.toString().localeCompare(b.toString())
+      a.toString().localeCompare(b.toString()),
     );
 
-    const pairKey = participants
-      .map((id) => id.toString())
-      .join("_");
+    const pairKey = participants.map((id) => id.toString()).join("_");
 
     try {
       match = await MatchModel.findOneAndUpdate(
@@ -274,7 +270,7 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
           returnDocument: "after",
           setDefaultsOnInsert: true,
           runValidators: true,
-        }
+        },
       ).lean();
     } catch (error) {
       if (error?.code !== 11000) {
@@ -285,10 +281,7 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
       match = await MatchModel.findOne({ pairKey }).lean();
 
       if (!match) {
-        throw new ApiError(
-          409,
-          "Unable to create mutual match"
-        );
+        throw new ApiError(409, "Unable to create mutual match");
       }
     }
   }
@@ -317,10 +310,7 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
       .lean();
 
     const profileMap = new Map(
-      profiles.map((profile) => [
-        profile.userId.toString(),
-        profile,
-      ])
+      profiles.map((profile) => [profile.userId.toString(), profile]),
     );
 
     const getMainPublicImage = (userId) => {
@@ -335,9 +325,7 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
         .sort((a, b) => a.order - b.order);
 
       const mainPhoto =
-        publicPhotos.find((photo) => photo.isMain) ||
-        publicPhotos[0] ||
-        null;
+        publicPhotos.find((photo) => photo.isMain) || publicPhotos[0] || null;
 
       return mainPhoto?.url || null;
     };
@@ -368,8 +356,6 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
     matchedImages,
   };
 };
-
-
 
 /**
  * -------------------------------------------------------
