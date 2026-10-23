@@ -31,7 +31,7 @@ router.get("/feed", getallchatscontroller)
 router.post("/:chatId/media", uploadChatMedia, sendChatMediaController);
 router.get("/:chatId", getChatByIdController);
 router.get("/messages/:chatId", getChatMessagesController);
-router.post("/messages/:chatId", sendMessageController);
+router.post("/send_message/:chatId", sendMessageController);
 // Receipt and archive operations act on the authenticated participant's state.
 router.patch("/delivered/:chatId", markChatAsDeliveredController);
 router.patch("/read/:chatId", markChatAsReadController);
