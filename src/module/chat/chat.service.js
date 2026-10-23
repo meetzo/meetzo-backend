@@ -42,12 +42,13 @@ const pagination = (page, limit, total) => ({
 // A chat can be created or sent to only while both directional likes are active.
 // Old conversations remain readable after an unlike, but new sends are blocked.
 export const assertMatchService = async (userId, targetUserId) => {
-  const [first, second] = await Promise.all([
+  const [blocked, liked, likedBack] = await Promise.all([
     isBlockedBetween(userId, targetUserId),
     LikeModel.exists({ fromUserId: userId, toUserId: targetUserId, status: "ACTIVE" }),
     LikeModel.exists({ fromUserId: targetUserId, toUserId: userId, status: "ACTIVE" }),
   ]);
-  if (!first || !second) throw fail("You can only chat with a matched user", 403);
+  if (blocked) throw fail("Chat is unavailable", 403);
+  if (!liked || !likedBack) throw fail("You can only chat with a matched user", 403);
 };
 
 // Always check membership before exposing a chat. Require the current match
@@ -150,9 +151,6 @@ const blocks = await UserBlockedModel.find({
   const blockedIds = blocks.map((b) =>
     idString(b.blockerId) === idString(userId) ? b.blockedId : b.blockerId
   );
-
-
-
 
   const query = {
     participants: { $all: [userId], $nin: blockedIds },
@@ -521,7 +519,44 @@ const toClientMessage = (msg) => {
 const isBlockedBetween = (a, b) =>
   blockeduserModel.exists({
     $or: [
-      { blockerId: a, blockedId: b },
-      { blockerId: b, blockedId: a },
+      { blockerID: a, blockedID: b },
+      { blockerID: b, blockedID: a },
     ],
   });
+
+// Personal (direct) chats feed, newest activity first. Groups are listed separately.
+export const getChatFeedService = async ({ userId, page, limit }) => {
+  const { page: p, limit: l } = paging(page, limit, 20);
+
+  //check user is not blocked
+  const blocks = await blockeduserModel.find({
+    $or: [{ blockerID: userId }, { blockedID: userId }],
+  }).select("blockerID blockedID").lean();
+  const blockedIds = blocks.map((b) =>
+    idString(b.blockerID) === idString(userId) ? b.blockedID : b.blockerID
+  );
+
+  // Archived chats are included (each item carries isArchived); deleted ones stay hidden.
+  const chatQuery = {
+    participants: { $all: [userId], $nin: blockedIds },
+    participantStates: { $elemMatch: { userId, isDeleted: false } },
+  };
+
+  const [chats, total] = await Promise.all([
+    ChatModel.find(chatQuery).sort({ lastMessageAt: -1, _id: -1 })
+      .skip((p - 1) * l).limit(l),
+    ChatModel.countDocuments(chatQuery),
+  ]);
+
+  //fetch last message preview for each chat
+  const items = await Promise.all(chats.map(async (doc) => {
+    const chat = await publicChat(doc, userId);
+    return {
+      ...chat,
+      name: chat.otherParticipant?.name || null,
+      image: chat.otherParticipant?.profileImage || null,
+    };
+  }));
+
+  return { items, pagination: pagination(p, l, total) };
+};

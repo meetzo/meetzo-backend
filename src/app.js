@@ -13,6 +13,7 @@ import idsRoutes from "./module/aadhar/ids.routes.js";
 import subscriptionRoutes from "./module/subscription/subscription.routes.js"
 import reportRoutes from "./module/reports/report.routes.js";
 import blockUserRoutes from "./module/block/blockuser.routes.js";
+import groupRoutes from "./module/groups/groups.routes.js";
 import "dotenv/config";
 
 const app = express();
@@ -44,6 +45,7 @@ app.use("/api/kyc", idsRoutes);
 app.use("/api/subscription", subscriptionRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/block", blockUserRoutes);
+app.use("/api/groups", groupRoutes);
 
 
 app.use((error, req, res, next) => {
