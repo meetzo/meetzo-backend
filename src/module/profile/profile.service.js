@@ -2023,6 +2023,12 @@ export const addProfilePhotosService = async ({
 
     await profile.save();
 
+     // Keep User.profileImage in sync so populate returns the main photo.
+    await userModel.updateOne(
+      { _id: userId },
+      { $set: { profileImage: profile.profileImage } },
+    );
+
     // =====================================
     // FINAL PUBLIC PHOTOS
     // =====================================
@@ -2312,6 +2318,14 @@ export const deleteProfilePhotoService = async ({ userId, fieldId }) => {
 
   // First update MongoDB.
   await profile.save();
+
+ // Main photo may have changed; keep User.profileImage in sync.
+  if (deletedVisibility === "PUBLIC" && wasMainPhoto) {
+    await userModel.updateOne(
+      { _id: userId },
+      { $set: { profileImage: profile.profileImage } },
+    );
+  }
 
   // Then remove actual image from ImageKit.
   // MongoDB deletion should remain successful even if

@@ -1,4 +1,4 @@
-import { createGroupService, leaveGroupService, sendInvitesService, joingroupservice, getGroupMessagesService, sendGroupMessageService, getMyInvitesService, getGroupInvitesService, respondInviteService,  } from './groups.service.js';
+import { createGroupService, leaveGroupService, sendInvitesService, joingroupservice, getGroupMessagesService, sendGroupMessageService, getMyInvitesService, getGroupInvitesService, respondInviteService } from './groups.service.js';
 import { Group, GroupMember, GroupMessage, Invite } from '../../models/groups.model.js';
 import mongoose from 'mongoose';
 
@@ -11,6 +11,8 @@ export const createGroupController = async (req, res) => {
     res.status(201).json(group);
   } catch (error) {
     res.status(error.statusCode || 500).json({ message: error.message || 'Failed to create group' });
+    if (error.code === 11000) return res.status(409).json({ message: 'You already have a group with this name' });
+    if (error.name === "ValidationError") return res.status(400).json({ message: error.message });
   }
 };
 
@@ -204,11 +206,26 @@ res.status(error.statusCode || 500).json({ message: error.message || "failed to 
 // get all membrs controller 
 export const getMembersController = async (req, res) => {
   try{
-    const members = await GroupMember.find({ groupID: req.params.groupId, status: "active" })
-      .populate("userID", "_id name profileImage");
-    res.status(200).json(members);
+    const groupId = req.params.groupId;
+     if (!mongoose.isValidObjectId(groupId)) {
+      return res.status(400).json({ message: 'Invalid group ID' });
+    }
+
+     const group = await Group.findById(groupId).select("_id type status").lean();
+      if (!group || group.status !== "ACTIVE") {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+     // Private/premium member lists are visible to their members only.
+    if (group.type !== "public") {
+      const isMember = await GroupMember.exists({ groupID: groupId, userID: req.user._id, status: "active" });
+      if (!isMember) return res.status(404).json({ message: 'Group not found' });
+    }
+      const members = await GroupMember.find({ groupID: groupId, status: "active" })
+      .populate("userID", "_id name profileImage")
+      .lean();
+    res.status(200).json({ success: true, data: members });
   }catch(error) {
-    res.status(500).json({message: "failed to get members"})
+     res.status(500).json({ message: "failed to get members" });
   }
 }
 
@@ -249,7 +266,7 @@ export const removeMemberController = async (req, res) => {
   }
 };
 
-// get messages controller
+// get all group messages controller
 export const getMessagesController = async (req, res) => {
   try {
     const result = await getGroupMessagesService({

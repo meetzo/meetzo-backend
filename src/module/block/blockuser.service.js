@@ -27,7 +27,7 @@ export const blockUserservice = async (blockedID, blockerID) => {
 }; 
 
 export const getBlockedUsersservice = async () => {
-    const blockedUsers = await BlockedUser.find({ }).populate("blockerID", "username email").populate("blockedID", "username email");
+    const blockedUsers = await BlockedUser.find({ }).populate("blockerID", "name email profileImage").populate("blockedID", "name email profileImage");
     return blockedUsers;
 };
 

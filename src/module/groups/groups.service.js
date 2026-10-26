@@ -24,15 +24,16 @@ export const createGroupService = async (groupData, userId) => {
     //validate the group input data
     validateGroupInput(groupData);
 
+    // Save the same trimmed values the duplicate check uses, or "Name " slips past it.
     const name = groupData.name.trim();
-    const duplicate = await Group.exists({ ownerID: userId, name })
+    const duplicate = await Group.exists({ ownerID: userId, name, type: groupData.type })
         .collation({ locale: "en", strength: 2 });
-    if (duplicate) throw fail("You already have a group with this name", 409);
+    if (duplicate) throw fail(`You already have a ${groupData.type} group with this name`, 409);
 
-    //create a new group instance 
+    //create a new group instance
     // Only client-editable fields; status, isDefault and membercount stay server-controlled.
     const group = new Group({
-        name: groupData.name,
+        name,
         description: groupData.description,
         category: groupData.category,
         type: groupData.type,
@@ -63,6 +64,7 @@ export const createGroupService = async (groupData, userId) => {
 
 // leave group service
 export const leaveGroupService = async (groupId, userId) => {
+  if (!mongoose.isValidObjectId(groupId)) throw fail("Invalid group ID", 400);
     const groupMember = await GroupMember.findOne({ groupID: groupId, userID: userId, status: "active" });
     if (!groupMember) throw fail('You are not a member of this group', 404);
     if (groupMember.role === 'owner') throw fail('Owner cannot leave the group. Transfer ownership or delete the group', 400);
@@ -197,7 +199,7 @@ export const joingroupservice = async (groupId, userId) =>{
         await session.withTransaction(async () => {
         const group = await Group.findById(groupId, null, { session });
 
-      if (!group || group.status === "BANNED") throw fail("Group not found", 404);
+      if (!group || group.status === "banned", "removed") throw fail("Group not found", 404);
       if (group.type !== "public") throw fail("This is not a public group", 403);
       if (group.status !== "ACTIVE") throw fail("Group is unavailable", 403);
 
@@ -244,11 +246,12 @@ export const joingroupservice = async (groupId, userId) =>{
 
 
 
-// get messages service (newest first, paginated)
+// get all messages service (newest first, paginated)
 export const getGroupMessagesService = async ({ groupId, userId, page = 1, limit = 30 }) => {
   const member = await assertActiveMember(groupId, userId);
   const p = Math.max(parseInt(page) || 1, 1);
   const l = Math.min(Math.max(parseInt(limit) || 30, 1), 100);
+
   // Members only see messages sent since they (re)joined.
   const filter = { groupID: groupId, createdAt: { $gte: member.joinedAt } };
 
@@ -260,9 +263,10 @@ export const getGroupMessagesService = async ({ groupId, userId, page = 1, limit
       .lean(),
     GroupMessage.countDocuments(filter),
   ]);
-
+  
   return {
     messages: messages.map(toClientGroupMessage),
+    total_messgages:total,
     pagination: {
       page: p,
       limit: l,
@@ -294,10 +298,15 @@ export const sendGroupMessageService = async ({ groupId, userId, message, messag
 
    const populated = await GroupMessage.findById(created._id)
     .populate("senderID", "_id name profileImage").lean();
-  return toClientGroupMessage(populated);
+   
+    return toClientGroupMessage(populated);
 };
 
 //
+
+
+
+
 const fail = (message, statusCode) => Object.assign(new Error(message), { statusCode });
 
 const assertActiveMember = async (groupId, userId) => {

@@ -46,7 +46,7 @@ router.get("/members/:groupId",isAuthenticated, getMembersController);
 //delete a member 
 router.delete("/:groupId/members/:userId",isAuthenticated, removeMemberController);          // private only
 
-// messages
+//get group all messages
 router.get("/messages/:groupId",isAuthenticated, getMessagesController);
 router.post("/messages/:groupId",isAuthenticated, sendMessageController);
 

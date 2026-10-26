@@ -24,21 +24,21 @@ const router = express.Router();
 router.use(isAuthenticated, requireChatAuth);
 
 // Access creates/retrieves a matched pair; inbox/history are per-user views.
-router.post("/access/:targetUserId", accessChatController);
-router.get("/", getUserChatsController);
-router.get("/feed", getallchatscontroller)
+router.post("/create_chat/:targetUserId",isAuthenticated, accessChatController);
+router.get("/", isAuthenticated, getUserChatsController);
+router.get("/feed", isAuthenticated,  getallchatscontroller)
 // Legacy multipart endpoint retained; normal message sends are text-only.
 router.post("/:chatId/media", uploadChatMedia, sendChatMediaController);
-router.get("/:chatId", getChatByIdController);
-router.get("/messages/:chatId", getChatMessagesController);
-router.post("/messages/:chatId", sendMessageController);
+router.get("/:chatId", isAuthenticated,  getChatByIdController);
+router.get("/messages/:chatId",  isAuthenticated,  getChatMessagesController);
+router.post("/send_message/:chatId", isAuthenticated,  sendMessageController);
 // Receipt and archive operations act on the authenticated participant's state.
-router.patch("/delivered/:chatId", markChatAsDeliveredController);
-router.patch("/read/:chatId", markChatAsReadController);
-router.patch("/archive/:chatId", archiveChatController);
+router.patch("/delivered/:chatId",  isAuthenticated, markChatAsDeliveredController);
+router.patch("/read/:chatId", isAuthenticated,  markChatAsReadController);
+router.patch("/archive/:chatId", isAuthenticated,  archiveChatController);
 // Message deletion defaults to "for me" unless deleteForEveryone is true.
-router.patch("/message/:messageId", editMessageController);
-router.delete("/message/:messageId", deleteMessageController);
-router.delete("/:chatId", deleteChatController);
+router.patch("/message/:messageId", isAuthenticated,  editMessageController);
+router.delete("/message/:messageId", isAuthenticated,  deleteMessageController);
+router.delete("/:chatId", isAuthenticated,  deleteChatController);
 
 export default router;
