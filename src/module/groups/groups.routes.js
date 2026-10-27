@@ -39,7 +39,7 @@ router.post("/invites/:inviteId/reject", isAuthenticated, rejectInviteController
 router.get("/invites/list/:groupId", isAuthenticated, getGroupInvitesController);
 
 // join group (public)
-router.post("/:groupId/join",isAuthenticated, joinGroupController);
+router.post("/join/:groupId",isAuthenticated, joinGroupController);
 
 // get all members of a group
 router.get("/members/:groupId",isAuthenticated, getMembersController);

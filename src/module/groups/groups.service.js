@@ -7,6 +7,7 @@ import {
 } from '../../models/groups.model.js';
 import mongoose from "mongoose";
 import { encrypt, decrypt } from "../../utils/encryption.js";
+import { notifyUser } from "../notifications/notifications.service.js";
 
 //create group service
 export const createGroupService = async (groupData, userId) => {
@@ -85,7 +86,7 @@ export const sendInvitesService = async (groupId, invitees, userId) => {
   if (!Array.isArray(invitees) || invitees.length === 0) throw fail("userIds must be a non-empty array", 400);
   if (invitees.length > 50) throw fail("You can invite at most 50 users at once", 400);
 
-  const group = await Group.findById(groupId).select("_id type status");
+  const group = await Group.findById(groupId).select("_id name type status");
   if (!group || group.status !== "ACTIVE") throw fail("Group not found", 404);
   if (group.type === "public") throw fail("Public groups don't need invites, users can join directly", 400);
 
@@ -108,6 +109,11 @@ export const sendInvitesService = async (groupId, invitees, userId) => {
   const invited = await Invite.insertMany(
     toInvite.map((inviteeId) => ({ groupID: groupId, userID: inviteeId, invitedBy: userId })),
   );
+  invited.forEach((invite) => notifyUser(invite.userID, {
+    title: "Group invite",
+    body: `You've been invited to join ${group.name}`,
+    data: { type: "GROUP_INVITE", inviteId: invite._id, groupId },
+  }));
   return { invited, skipped: ids.filter((id) => !toInvite.includes(id)) };
 };
 
@@ -199,7 +205,7 @@ export const joingroupservice = async (groupId, userId) =>{
         await session.withTransaction(async () => {
         const group = await Group.findById(groupId, null, { session });
 
-      if (!group || group.status === "banned", "removed") throw fail("Group not found", 404);
+      if (!group || group.status === "BANNED") throw fail("Group not found", 404);
       if (group.type !== "public") throw fail("This is not a public group", 403);
       if (group.status !== "ACTIVE") throw fail("Group is unavailable", 403);
 
@@ -209,7 +215,7 @@ export const joingroupservice = async (groupId, userId) =>{
         result = { group, joined: false, message: "Already a member" };
         return;
       }
-       if (existing?.status === "banned") throw fail("You cannot join this group", 403);
+       if (["banned", "removed"].includes(existing?.status)) throw fail("You cannot join this group", 403);
 
        // adding member to the public group
         await GroupMember.findOneAndUpdate(

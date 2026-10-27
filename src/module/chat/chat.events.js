@@ -1,5 +1,6 @@
 import { getIO } from "../../socket/socket.js";
 import { markChatAsReadService } from "./chat.service.js";
+import { notifyUser } from "../notifications/notifications.service.js";
 
 // Send private updates to every device signed in as each user.
 export const emitChatEvent = (event, data, userIds) => {
@@ -49,5 +50,12 @@ export const emitNewMessage = (message) => {
   // Receiver has the chat open: read it now so the unread badge never grows.
   if (isViewingChat(message.receiverId, message.chatId)) {
     autoMarkChatAsRead(message.chatId, message.receiverId);
+  } else {
+    // Chat isn't open: push. Messages are encrypted, so the text is never sent to FCM.
+    notifyUser(message.receiverId, {
+      title: "New message",
+      body: "You have a new message",
+      data: { type: "NEW_MESSAGE", chatId: message.chatId, senderId: message.senderId },
+    });
   }
 };
