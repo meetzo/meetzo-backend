@@ -1260,9 +1260,7 @@ export const updateProfileService = async ({ userId, profileData = {} }) => {
   // CHECK PROFILE
   // ---------------------------------------
 
-  const existingProfile = await profileModel.findOne({
-    userId,
-  });
+  const existingProfile = await profileModel.findOne({ userId });
 
   if (!existingProfile) {
     throw new ApiError(
@@ -1334,47 +1332,52 @@ export const updateProfileService = async ({ userId, profileData = {} }) => {
   // ---------------------------------------
 
   if (updateData.dateOfBirth !== undefined) {
-    const age = calculateAge(updateData.dateOfBirth);
+    const dob = new Date(updateData.dateOfBirth);
+
+    if (Number.isNaN(dob.getTime())) {
+      throw new ApiError(400, "Invalid date of birth");
+    }
+
+    const age = calculateAge(dob);
 
     if (age < 18) {
       throw new ApiError(400, "You must be at least 18 years old");
     }
 
-    updateData.dateOfBirth = new Date(updateData.dateOfBirth);
+    updateData.dateOfBirth = dob;
   }
 
   // ---------------------------------------
-  // HEIGHT
+  // HEIGHT (FEET ONLY)
   // ---------------------------------------
 
   if (updateData.height !== undefined) {
-    const height = updateData.height;
+    const rawHeight = updateData.height;
+
+    // accepts 5.8 or { value: 5.8 } or { value: 5.8, unit: "ft" }
+    const heightValue =
+      typeof rawHeight === "object" &&
+      rawHeight !== null &&
+      !Array.isArray(rawHeight)
+        ? Number(rawHeight.value)
+        : Number(rawHeight);
 
     if (
-      typeof height !== "object" ||
-      height === null ||
-      Array.isArray(height)
+      typeof rawHeight === "object" &&
+      rawHeight !== null &&
+      rawHeight.unit !== undefined &&
+      String(rawHeight.unit).trim().toUpperCase() !== "FT"
     ) {
-      throw new ApiError(400, "Height must contain value and unit");
+      throw new ApiError(400, "Height must be in feet (FT)");
     }
 
-    const heightValue = Number(height.value);
-
-    const heightUnit = String(height.unit || "")
-      .trim()
-      .toUpperCase();
-
-    if (
-      !Number.isFinite(heightValue) ||
-      heightValue <= 0 ||
-      !["CM", "FT"].includes(heightUnit)
-    ) {
-      throw new ApiError(400, "Valid height value and unit are required");
+    if (!Number.isFinite(heightValue) || heightValue < 3 || heightValue > 8) {
+      throw new ApiError(400, "Height must be a valid value in feet (3 to 8)");
     }
 
     updateData.height = {
-      value: heightValue,
-      unit: heightUnit,
+      value: Number(heightValue.toFixed(2)),
+      unit: "FT",
     };
   }
 
@@ -1391,20 +1394,20 @@ export const updateProfileService = async ({ userId, profileData = {} }) => {
 
     selfDescription: {
       min: 1,
-      max: Infinity,
+      max: 3,
       message: "Select between 1 and 3 personality traits",
     },
 
     interests: {
       min: 1,
-    
-      message: "Select atleast one interest",
+      max: Infinity,
+      message: "Select at least one interest",
     },
 
     idealWeekend: {
       min: 1,
       max: Infinity,
-      message: "select atleast one weekend preference",
+      message: "Select at least one weekend preference",
     },
 
     values: {
@@ -1473,10 +1476,8 @@ export const updateProfileService = async ({ userId, profileData = {} }) => {
   // ---------------------------------------
 
   const finalProfession = updateData.profession ?? existingProfile.profession;
-
   const finalOrientation =
     updateData.orientation ?? existingProfile.orientation;
-
   const finalReligion = updateData.religion ?? existingProfile.religion;
 
   const finalCustomProfession =
@@ -1535,12 +1536,8 @@ export const updateProfileService = async ({ userId, profileData = {} }) => {
   // ---------------------------------------
 
   const updatedProfile = await profileModel.findOneAndUpdate(
-    {
-      userId,
-    },
-    {
-      $set: updateData,
-    },
+    { userId },
+    { $set: updateData },
     {
       returnDocument: "after",
       runValidators: true,
@@ -1549,7 +1546,6 @@ export const updateProfileService = async ({ userId, profileData = {} }) => {
 
   return updatedProfile;
 };
-
 export const addProfilePictureService = async ({ userId, file }) => {
   if (!userId) {
     throw new ApiError(401, "Unauthorized");
