@@ -1,4 +1,5 @@
 import {Router} from 'express'; 
+import { uploadProfileImage } from '../../utils/upload.js';
 import { isAuthenticated } from '../../middleware/auth.middleware.js';
 import { 
 getMyGroupsController, 
@@ -16,7 +17,9 @@ sendMessageController,
 removeMemberController,
 acceptInviteController,
 rejectInviteController,
-getGroupInvitesController
+getGroupInvitesController,
+updateGroupIconController,
+setGroupAdminsController
  } from './groups.controller.js';  
     
 const router = Router();
@@ -25,13 +28,16 @@ const router = Router();
 router.post('/create', isAuthenticated, createGroupController);
 router.get("/discover", isAuthenticated, getGroupsController);        // get public groups
 router.get("/mine", isAuthenticated, getMyGroupsController);           // get my groups
+router.patch("/icon/:groupId", isAuthenticated,  uploadProfileImage.single("icon"), updateGroupIconController);
 
 // ── Single group ───────────────────────────────────────────
 router.get("/:groupId",isAuthenticated, getGroupByIdController);
-router.patch("/:groupId",isAuthenticated, updateGroupController);              // private only
+router.patch("/:groupId",isAuthenticated, updateGroupController);              // Admins/owners only
 router.delete("/:groupId",isAuthenticated, deleteGroupController);             // private, owner only
 router.post("/leave/:groupId",isAuthenticated, leaveGroupController);
 
+// set Admins route
+router.patch("/:groupId/setAdmin/:userId", isAuthenticated, setGroupAdminsController);
 // invites (private)
 router.post("/invites/:groupId",isAuthenticated, sendInvitesController);
 router.post("/invites/:inviteId/accept", isAuthenticated, acceptInviteController);

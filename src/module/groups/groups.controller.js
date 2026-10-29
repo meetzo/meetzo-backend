@@ -1,4 +1,7 @@
-import { createGroupService, leaveGroupService, sendInvitesService, joingroupservice, getGroupMessagesService, sendGroupMessageService, getMyInvitesService, getGroupInvitesService, respondInviteService } from './groups.service.js';
+import { createGroupService, leaveGroupService, sendInvitesService, joingroupservice,
+   getGroupMessagesService, sendGroupMessageService, getMyInvitesService,
+   getGroupInvitesService, respondInviteService, updateGroupIconService, 
+   setGroupAdminsService } from './groups.service.js';
 import { Group, GroupMember, GroupMessage, Invite } from '../../models/groups.model.js';
 import mongoose from 'mongoose';
 
@@ -15,6 +18,21 @@ export const createGroupController = async (req, res) => {
     if (error.name === "ValidationError") return res.status(400).json({ message: error.message });
   }
 };
+
+//set group Admins Controller
+export const setGroupAdminsController = async (req, res) => {
+  try{
+    const admins = await setGroupAdminsService({
+      groupId: req.params.groupId,
+      targetUserId: req.params.userId,
+      ownerId: req.user._id,
+      role: req.body.role});
+    res.status(201).json({success: true, message: "message role updated", data: admins});
+      }
+  catch(error){
+    res.status(error.ststusCode || 500).json({message: error.message || "failed to set Admin"});
+  }
+}
 
 // get all groups controller
 export const getGroupsController = async (req, res) => {
@@ -109,6 +127,19 @@ export const updateGroupController = async (req, res) => {
     res.status(200).json(updatedGroup);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update group', error: error.message });
+  }
+};
+//upload/update group icon
+export const updateGroupIconController = async(req, res)=>{
+  try{
+    const result = await updateGroupIconService({
+      groupId:req.params.groupId,
+      userId: req.user._id,
+      file:req.file,
+    });
+    res.status(200).json({success: true, message: "Group icon update", data: result});
+  }catch(error){
+    res.status(error.statusCode || 500).json({message: error.message ||"Failed to update group icon"});
   }
 };
 

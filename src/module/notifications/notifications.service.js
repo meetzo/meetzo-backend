@@ -29,6 +29,9 @@ export const removeTokenService = ({ userId, token }) => DeviceToken.deleteOne({
 // Called from logout: stop pushes to the device(s) registered by this login session.
 export const removeSessionDeviceTokensService = ({ userId, sessionToken }) =>
   DeviceToken.deleteMany({ userId, sessionHash: hashSession(sessionToken) });
+
+
+
 // Push a notification to every registered device of the given users.
 export const sendNotificationService = async ({ userIds, title, body = "", data = {} }) => {
   const ids = [...new Set([].concat(userIds).filter(Boolean).map(String))];
@@ -78,4 +81,3 @@ export const sendNotificationService = async ({ userIds, title, body = "", data 
 export const notifyUser = (userId, { title, body, data }) =>
   sendNotificationService({ userIds: [userId], title, body, data })
     .catch((error) => console.error("Push notification failed:", error.message));
-

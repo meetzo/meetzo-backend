@@ -7,6 +7,7 @@ import {
 } from '../../models/groups.model.js';
 import mongoose from "mongoose";
 import { encrypt, decrypt } from "../../utils/encryption.js";
+import imageKit from "../profile/imageKit.service.js";
 import { notifyUser } from "../notifications/notifications.service.js";
 
 //create group service
@@ -116,6 +117,8 @@ export const sendInvitesService = async (groupId, invitees, userId) => {
   }));
   return { invited, skipped: ids.filter((id) => !toInvite.includes(id)) };
 };
+
+
 
 // my pending invites (invitee)
 export const getMyInvitesService = (userId) =>
@@ -333,3 +336,72 @@ const toClientGroupMessage = (msg) => msg && ({
   ...msg,
   message: msg.isdeleted ? "" : (msg.message ? decrypt(msg.message) : ""),
 });
+
+
+
+
+// upload or replace the group icon (owner/admin only)
+export const updateGroupIconService = async({groupId, userId, file}) =>{
+  if(!mongoose.isValidObjectId(groupId)) throw fail("Invalid Group ID", 400);
+  if(!file) throw fail("Icon image is required", 400);
+
+  const me =  await GroupMember.findOne({groupID : groupId, userID: userId, status: "active"});
+  if(!me || !["owner", "admin"].includes(me.role)){
+    throw fail("Only the owner or an Admin can change the group Icon", 403);
+  }
+  const group = await Group.findById(groupId);
+  if (!group) throw fail("Group not fund", 404);
+  const oldIconId = group.iconId;
+
+  //upload new image
+  let uploaded;
+  try{
+    uploaded = await imageKit.upload({
+      file: file.buffer.toString("base64"),
+      fileName: `group-${groupId}-${Date.now()}`,
+      folder: "/Meetzo/Group_Icons",
+      useUniqueFileName: true,
+      tags: ["group-icon", String(groupId)]
+    });
+  }catch(error){
+    throw fail (`Group Icon upload failed: ${error.message}`, 500);
+  }
+ // 2. save to DB; if that fails, remove the image we just uploaded
+  try {
+    group.icon = uploaded.url;
+    group.iconId = uploaded.fileId;
+    await group.save();
+  } catch (error) {
+    await imageKit.deleteFile(uploaded.fileId).catch(() => {});
+    throw fail("Unable to update group icon", 500);
+  }
+   // 3. only now delete the old icon
+  if (oldIconId && oldIconId !== uploaded.fileId) {
+    await imageKit.deleteFile(oldIconId)
+      .catch((e) => console.error("Old group icon deletion failed:", e.message));
+  }
+
+  return { icon: group.icon, iconId: group.iconId };
+};
+
+
+//set Admins service
+export const setGroupAdminsService = async ({groupId, targetUserId, userId, ownerId, role}) =>{
+  if (!mongoose.isValidObjectId(groupId) || !mongoose.isValidObjectId(targetUserId)) {
+    throw fail("invalid ID", 400);
+      }
+  if(!["admin", "member"].includes(role)){
+    throw fail('role must be "Admin" o "member"', 400);
+  }
+  const me = await GroupMember.findOne({groupID: groupId, userID: ownerId, status: "active" });
+if(!me || me.role !== "owner")throw fail("only the owner can change the role of a member", 400);
+
+const target = await GroupMember.findOne({groupID: groupId, userID: targetUserId, status: "active"});
+if(!target) throw fail ("Member not found in theis group", 404);
+if(target.role == "owner") throw fail ("the owner role can not be changed", 400);
+if(target.role === role) throw fail(`user is already ${role === "admin" ? "an Admin" : "a member"}`, 400)
+
+target.role = role;
+await target.save();
+return{userId: target.userID, role: target.role};
+};

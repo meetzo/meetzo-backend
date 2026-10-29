@@ -12,6 +12,10 @@ const DEFAULT_GROUPS = [
   { name: "Foodies", description: "Restaurants, recipes and food talk", category: "Food" },
   { name: "Fitness & Wellness", description: "Workouts, health and motivation", category: "Fitness" },
   { name: "Music Lovers", description: "Share what you are listening to", category: "Music" },
+  { name: "LGBT+", description: "Explore your intrests", category: "community" },
+  { name: "Noida locals", description: "explore Noida clubs, malls, Restaurnts, parties, parks, waterparks", category: "local" },
+
+
 ];
 
 const seedGroups = async () => {

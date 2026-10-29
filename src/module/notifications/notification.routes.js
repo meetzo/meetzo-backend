@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { isAuthenticated } from '../../middleware/auth.middleware.js';
-import { authorizeAdmin } from '../../middleware/admin.middleware.js';
+//import { authorizeAdmin } from '../../middleware/admin.middleware.js';
 import {
-  registerTokenController, logoutController, sendNotificationController,
+  registerTokenController, logoutController,
 } from './notifications.controller.js';
 
 const router = Router();
@@ -11,7 +11,7 @@ const router = Router();
 router.post("/register-token", isAuthenticated, registerTokenController);
 //triggering notification or sending notification to push service (FCM or APNs)
 //only Admins can push notification
-router.post("/send", isAuthenticated,authorizeAdmin, sendNotificationController);
+//router.post("/send", isAuthenticated,authorizeAdmin, sendNotificationController);
 // get all notifications 
 //router.get("/", isAuthenticated, listNotificationsController);
 //unread notification 

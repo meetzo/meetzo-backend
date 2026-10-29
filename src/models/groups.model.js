@@ -42,7 +42,15 @@ const groupSchema = new mongoose.Schema({
     isDefault:{
         type:Boolean,
         default: false
-    }
+    },
+   icon: {
+    type: String,
+    default:null
+   },
+   iconId: {
+    type: String,
+    default: null
+   } 
 },
 {
     timestamps: true
@@ -53,6 +61,9 @@ groupSchema.index(
   { unique: true, collation: { locale: "en", strength: 2 } }
 );
 const Group = mongoose.model("Group", groupSchema);
+
+
+
 
 // invites schema to send invites to users to join the group
 const inviteSchema = new mongoose.Schema({
@@ -94,6 +105,7 @@ inviteSchema.index(
 );
 
 const Invite = mongoose.model("Invite", inviteSchema);
+
 
 
 

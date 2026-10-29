@@ -1,5 +1,5 @@
 import {
-  registerTokenService, removeTokenService, sendNotificationService,
+  registerTokenService, removeTokenService,
 } from "./notifications.service.js";
 
 const PLATFORMS = ["android", "ios", "web"];
@@ -24,7 +24,7 @@ export const registerTokenController = async (req, res) => {
 };
 
 // send notification controller (admin only: test pushes / announcements)
-export const sendNotificationController = async (req, res) => {
+/*export const sendNotificationController = async (req, res) => {
   try {
     const { userIds, title, body, data } = req.body || {};
     if (!Array.isArray(userIds) || userIds.length === 0 || userIds.length > 1000) {
@@ -42,6 +42,7 @@ export const sendNotificationController = async (req, res) => {
     res.status(error.statusCode || 500).json({ message: error.message || "Failed to send notification" });
   }
 };
+*/
 
 // remove device token (call on logout)
 export const logoutController = async (req, res) => {

@@ -8,7 +8,8 @@ export const uploadProfileImage = multer({
   },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith("image/")) {
-      cb(new Error("Only image files are allowed"), false);
+      return cb(new Error("Only image files are allowed"), false);
+      
     }
     cb(null, true);
   },
