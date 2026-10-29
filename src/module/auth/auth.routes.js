@@ -39,7 +39,7 @@ router.post("/apple_login", appleLogin);
 
 router.post("/mobile_login", mobileLoginController);
 router.post("/verify_mobile_otp", verifyMobileOtpController);
-//delete account
+// delete account
 
 router.delete("/delete_account",isAuthenticated,deleteAccount)
 
