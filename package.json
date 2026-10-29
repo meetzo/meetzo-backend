@@ -24,6 +24,7 @@
     "dotenv": "^17.4.2",
     "env": "^0.0.2",
     "express": "^5.2.1",
+    "firebase-admin": "^14.5.0",
     "google-auth-library": "^11.0.2",
     "imagekit": "^6.0.0",
     "jose": "^6.2.9",

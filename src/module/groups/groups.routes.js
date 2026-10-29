@@ -39,14 +39,14 @@ router.post("/invites/:inviteId/reject", isAuthenticated, rejectInviteController
 router.get("/invites/list/:groupId", isAuthenticated, getGroupInvitesController);
 
 // join group (public)
-router.post("/:groupId/join",isAuthenticated, joinGroupController);
+router.post("/join/:groupId",isAuthenticated, joinGroupController);
 
 // get all members of a group
 router.get("/members/:groupId",isAuthenticated, getMembersController);
 //delete a member 
 router.delete("/:groupId/members/:userId",isAuthenticated, removeMemberController);          // private only
 
-// messages
+//get group all messages
 router.get("/messages/:groupId",isAuthenticated, getMessagesController);
 router.post("/messages/:groupId",isAuthenticated, sendMessageController);
 

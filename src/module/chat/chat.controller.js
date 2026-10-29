@@ -15,7 +15,7 @@ import {
   deleteMessageService,
   getChatFeedService,
 } from "./chat.service.js";
-import { emitChatEvent, emitNewMessage } from "./chat.events.js";
+import { emitChatEvent, emitNewMessage, autoMarkChatAsRead } from "./chat.events.js";
 import { deleteChatMediaService, uploadChatMediaService } from "./chatMedia.service.js";
 import ApiError from "../../utils/api.error.js";
 
@@ -67,10 +67,15 @@ export const getChatMessagesController = async (req, res, next) => {
       chatId: req.params.chatId, userId: req.user._id,
       page: req.query.page, limit: req.query.limit,
     });
+    // Opening the chat (first page) counts as reading it; older pages don't.
+    const isFirstPage = !req.query.page || Number(req.query.page) === 1;
+    const read = isFirstPage ? await autoMarkChatAsRead(req.params.chatId, req.user._id) : null;
     res.status(200).json({ success: true, message: "Messages fetched successfully",
-      data: result.messages, count: result.count, pagination: result.pagination });
+      data: result.messages, count: result.count, pagination: result.pagination,
+      unreadCount: read?.unreadCount ?? undefined });
   } catch (error) { next(error); }
 };
+
 
 // POST /messages/:chatId accepts text only. A repeated clientMessageId gets
 // the existing message and must not trigger a second realtime notification.

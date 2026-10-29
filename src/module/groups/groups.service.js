@@ -7,6 +7,7 @@ import {
 } from '../../models/groups.model.js';
 import mongoose from "mongoose";
 import { encrypt, decrypt } from "../../utils/encryption.js";
+import { notifyUser } from "../notifications/notifications.service.js";
 
 //create group service
 export const createGroupService = async (groupData, userId) => {
@@ -24,15 +25,16 @@ export const createGroupService = async (groupData, userId) => {
     //validate the group input data
     validateGroupInput(groupData);
 
+    // Save the same trimmed values the duplicate check uses, or "Name " slips past it.
     const name = groupData.name.trim();
-    const duplicate = await Group.exists({ ownerID: userId, name })
+    const duplicate = await Group.exists({ ownerID: userId, name, type: groupData.type })
         .collation({ locale: "en", strength: 2 });
-    if (duplicate) throw fail("You already have a group with this name", 409);
+    if (duplicate) throw fail(`You already have a ${groupData.type} group with this name`, 409);
 
-    //create a new group instance 
+    //create a new group instance
     // Only client-editable fields; status, isDefault and membercount stay server-controlled.
     const group = new Group({
-        name: groupData.name,
+        name,
         description: groupData.description,
         category: groupData.category,
         type: groupData.type,
@@ -63,6 +65,7 @@ export const createGroupService = async (groupData, userId) => {
 
 // leave group service
 export const leaveGroupService = async (groupId, userId) => {
+  if (!mongoose.isValidObjectId(groupId)) throw fail("Invalid group ID", 400);
     const groupMember = await GroupMember.findOne({ groupID: groupId, userID: userId, status: "active" });
     if (!groupMember) throw fail('You are not a member of this group', 404);
     if (groupMember.role === 'owner') throw fail('Owner cannot leave the group. Transfer ownership or delete the group', 400);
@@ -83,7 +86,7 @@ export const sendInvitesService = async (groupId, invitees, userId) => {
   if (!Array.isArray(invitees) || invitees.length === 0) throw fail("userIds must be a non-empty array", 400);
   if (invitees.length > 50) throw fail("You can invite at most 50 users at once", 400);
 
-  const group = await Group.findById(groupId).select("_id type status");
+  const group = await Group.findById(groupId).select("_id name type status");
   if (!group || group.status !== "ACTIVE") throw fail("Group not found", 404);
   if (group.type === "public") throw fail("Public groups don't need invites, users can join directly", 400);
 
@@ -106,6 +109,11 @@ export const sendInvitesService = async (groupId, invitees, userId) => {
   const invited = await Invite.insertMany(
     toInvite.map((inviteeId) => ({ groupID: groupId, userID: inviteeId, invitedBy: userId })),
   );
+  invited.forEach((invite) => notifyUser(invite.userID, {
+    title: "Group invite",
+    body: `You've been invited to join ${group.name}`,
+    data: { type: "GROUP_INVITE", inviteId: invite._id, groupId },
+  }));
   return { invited, skipped: ids.filter((id) => !toInvite.includes(id)) };
 };
 
@@ -183,11 +191,11 @@ export const respondInviteService = async (inviteId, userId, action) => {
   }
 };
 
-  
 
 
 
-//join public group service 
+
+//join public group service
 export const joingroupservice = async (groupId, userId) =>{
     if (!mongoose.isValidObjectId(groupId)) throw fail("Invalid group ID", 400);
     const session = await mongoose.startSession();
@@ -207,7 +215,7 @@ export const joingroupservice = async (groupId, userId) =>{
         result = { group, joined: false, message: "Already a member" };
         return;
       }
-       if (existing?.status === "banned") throw fail("You cannot join this group", 403);
+       if (["banned", "removed"].includes(existing?.status)) throw fail("You cannot join this group", 403);
 
        // adding member to the public group
         await GroupMember.findOneAndUpdate(
@@ -221,7 +229,7 @@ export const joingroupservice = async (groupId, userId) =>{
 
       await Group.updateOne({ _id: groupId }, { $inc: { membercount: 1 } }, { session });
 
-      
+
        await GroupMessage.create([{
         groupID: groupId, senderID: null, messageType: "system", message: encrypt("Member joined"),
         systemEvent: { type: "MEMBER_JOINED", actorId: userId },
@@ -237,18 +245,19 @@ export const joingroupservice = async (groupId, userId) =>{
     }finally {
     await session.endSession();
   }
-    
+
 }
 
 
 
 
 
-// get messages service (newest first, paginated)
+// get all messages service (newest first, paginated)
 export const getGroupMessagesService = async ({ groupId, userId, page = 1, limit = 30 }) => {
   const member = await assertActiveMember(groupId, userId);
   const p = Math.max(parseInt(page) || 1, 1);
   const l = Math.min(Math.max(parseInt(limit) || 30, 1), 100);
+
   // Members only see messages sent since they (re)joined.
   const filter = { groupID: groupId, createdAt: { $gte: member.joinedAt } };
 
@@ -263,6 +272,7 @@ export const getGroupMessagesService = async ({ groupId, userId, page = 1, limit
 
   return {
     messages: messages.map(toClientGroupMessage),
+    total_messgages:total,
     pagination: {
       page: p,
       limit: l,
@@ -294,10 +304,15 @@ export const sendGroupMessageService = async ({ groupId, userId, message, messag
 
    const populated = await GroupMessage.findById(created._id)
     .populate("senderID", "_id name profileImage").lean();
-  return toClientGroupMessage(populated);
+
+    return toClientGroupMessage(populated);
 };
 
 //
+
+
+
+
 const fail = (message, statusCode) => Object.assign(new Error(message), { statusCode });
 
 const assertActiveMember = async (groupId, userId) => {

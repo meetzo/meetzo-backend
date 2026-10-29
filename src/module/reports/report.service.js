@@ -38,7 +38,7 @@ const createReportservice = async (reporterId, reportedUserId, reportData) => {
 
 // Fetch reports made on the authenticated user
  const getMyReportservice = async (userId) => {
-        return await ReportModel.find({ reportedUserId: userId }).populate("userId", "username email");
+        return await ReportModel.find({ reportedUserId: userId }).populate("userId", "name email profileImage");
    };
 
 
@@ -47,7 +47,7 @@ const getReportedUserservice = async (userId, page = 1, limit = 20) => {
        .sort({ createdAt: -1 })
        .skip((page - 1) * limit)
        .limit(limit)
-       .populate("userId", "username profileImage")
+       .populate("userId", "name profileImage")
        .lean();
 }
 
@@ -57,8 +57,8 @@ const getAllReportedUserservice = async (page = 1, limit = 20) => {
        .sort({ createdAt: -1 })
        .skip((page - 1) * limit)
        .limit(limit)
-       .populate("userId", "username email")
-       .populate("reportedUserId", "username profileImage")
+       .populate("userId", "name email profileImage")
+       .populate("reportedUserId", "name profileImage")
        .lean();
 }
 

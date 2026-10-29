@@ -33,12 +33,12 @@ router.get("/:chatId", getChatByIdController);
 router.get("/messages/:chatId", getChatMessagesController);
 router.post("/send_message/:chatId", sendMessageController);
 // Receipt and archive operations act on the authenticated participant's state.
-router.patch("/delivered/:chatId", markChatAsDeliveredController);
-router.patch("/read/:chatId", markChatAsReadController);
-router.patch("/archive/:chatId", archiveChatController);
+router.patch("/delivered/:chatId",  isAuthenticated, markChatAsDeliveredController);
+router.patch("/read/:chatId", isAuthenticated,  markChatAsReadController);
+router.patch("/archive/:chatId", isAuthenticated,  archiveChatController);
 // Message deletion defaults to "for me" unless deleteForEveryone is true.
-router.patch("/message/:messageId", editMessageController);
-router.delete("/message/:messageId", deleteMessageController);
-router.delete("/:chatId", deleteChatController);
+router.patch("/message/:messageId", isAuthenticated,  editMessageController);
+router.delete("/message/:messageId", isAuthenticated,  deleteMessageController);
+router.delete("/:chatId", isAuthenticated,  deleteChatController);
 
 export default router;

@@ -14,6 +14,7 @@ import subscriptionRoutes from "./module/subscription/subscription.routes.js"
 import reportRoutes from "./module/reports/report.routes.js";
 import blockUserRoutes from "./module/block/blockuser.routes.js";
 import groupRoutes from "./module/groups/groups.routes.js";
+import notificationsRoutes from "./module/notifications/notification.routes.js";
 import "dotenv/config";
 
 const app = express();
@@ -46,6 +47,7 @@ app.use("/api/subscription", subscriptionRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/block", blockUserRoutes);
 app.use("/api/groups", groupRoutes);
+app.use("/api/notification", notificationsRoutes);
 
 
 app.use((error, req, res, next) => {

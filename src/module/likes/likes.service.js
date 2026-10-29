@@ -5,6 +5,7 @@ import LikeModel from "../../models/like.Model.js";
 import ApiError from "../../utils/api.error.js";
 import profileModel from "../../models/profileModel.js";
 import MatchModel from "../../models/chatModel.js";
+import { notifyUser } from "../notifications/notifications.service.js";
 
 /**
  * -------------------------------------------------------
@@ -172,6 +173,13 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
   if (!targetUser) {
     throw new ApiError(404, "User not found");
   }
+
+  // Remember whether the like was already active, so repeated taps don't re-notify.
+  const wasActive = await LikeModel.exists({
+    fromUserId: fromId,
+    toUserId: toId,
+    status: "ACTIVE",
+  });
 
   // ========================================
   // CREATE OR REACTIVATE LIKE
@@ -342,6 +350,19 @@ export const likeUserService = async ({ fromUserId, toUserId }) => {
   // ========================================
   // RESPONSE FOR FLUTTER
   // ========================================
+
+  // Push only for a new (or re-activated) like: a match notifies both users, a like notifies the target.
+  if (!wasActive) {
+    if (isMatch) {
+      notifyUser(fromId, { title: "It's a match!", body: "You have a new match",
+        data: { type: "NEW_MATCH", chatId: match._id, userId: toId } });
+      notifyUser(toId, { title: "It's a match!", body: "You have a new match",
+        data: { type: "NEW_MATCH", chatId: match._id, userId: fromId } });
+    } else {
+      notifyUser(toId, { title: "New like", body: "Someone liked your profile",
+        data: { type: "NEW_LIKE" } });
+    }
+  }
 
   return {
     ...like,

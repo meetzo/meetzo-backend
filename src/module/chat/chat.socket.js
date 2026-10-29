@@ -4,7 +4,7 @@ import {
   markChatAsReadService, markChatAsDeliveredService,
 } from "./chat.service.js";
 import { assertChatSocketAuth } from "./chat.auth.js";
-import { emitChatEvent, emitNewMessage } from "./chat.events.js";
+import { emitChatEvent, emitNewMessage, autoMarkChatAsRead } from "./chat.events.js";
 
 // Incoming socket events use the same services as REST. Callbacks acknowledge
 // requests; outgoing events are sent to each user's personal room separately.
@@ -33,6 +33,7 @@ export const registerChatSocket = (io, socket) => {
       const { chatId } = data || {};
       await getParticipantChatService({ chatId, userId: socket.userId });
       await socket.join(room(chatId));
+      await autoMarkChatAsRead(chatId, socket.userId);
       typeof callback === "function" && callback({ success: true, message: "Chat joined successfully" });
     } catch (error) { acknowledgeError(callback, error); }
   });

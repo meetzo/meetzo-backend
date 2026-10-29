@@ -47,9 +47,9 @@ const groupSchema = new mongoose.Schema({
 {
     timestamps: true
 });
-// restrict duplicate group creation
+// restrict duplicate group creation (same name is allowed for a different type)
 groupSchema.index(
-  { ownerID: 1, name: 1 },
+  { ownerID: 1, name: 1, type: 1 },
   { unique: true, collation: { locale: "en", strength: 2 } }
 );
 const Group = mongoose.model("Group", groupSchema);

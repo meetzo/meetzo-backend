@@ -14,6 +14,7 @@ import { sendOtpEmail } from "../../utils/sendEmail.js";
 import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
 import BlacklistedToken from "../../models/blacklistedTokenModel.js";
+import { removeSessionDeviceTokensService } from "../notifications/notifications.service.js";
 
 
 // Helper function for safe user response
@@ -2077,6 +2078,11 @@ export const logoutService = async ({
     },
     { upsert: true }
   );
+
+  // Stop push notifications to the device this session registered.
+  // A cleanup failure must not fail the logout itself.
+  await removeSessionDeviceTokensService({ userId, sessionToken: token })
+    .catch((error) => console.error("Device token cleanup failed:", error.message));
 
   return {
     success: true,
