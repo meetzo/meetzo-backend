@@ -2084,3 +2084,18 @@ export const logoutService = async ({
   };
 };
 
+
+
+export const deleteAccountService = async (userId) => {
+
+  await userModel.deleteOne({
+    _id: userId,
+  });
+
+  return {
+    success: true,
+    message: "Account deleted successfully",
+  };
+
+}
+

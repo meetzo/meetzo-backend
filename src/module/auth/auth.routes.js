@@ -10,7 +10,7 @@ import {
   appleLogin,
   mobileLoginController,
   verifyMobileOtpController,
-  logout
+  logout,deleteAccount
 
 } from "./auth.controller.js";
 
@@ -39,6 +39,9 @@ router.post("/apple_login", appleLogin);
 
 router.post("/mobile_login", mobileLoginController);
 router.post("/verify_mobile_otp", verifyMobileOtpController);
+//delete account
+
+router.delete("/delete_account",isAuthenticated,deleteAccount)
 
 
 

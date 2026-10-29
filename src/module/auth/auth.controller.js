@@ -13,6 +13,7 @@ import {
   mobileLoginService,
   verifyMobileOtpService,
   logoutService,
+  deleteAccountService,
 
 } from "./auth.service.js";
 
@@ -282,4 +283,20 @@ export const logout = async (req, res, next) => {
     next(error);
   }
 };
+
+
+export const deleteAccount=async(req,res)=>{
+
+  try {
+    const result=await deleteAccountService(req.user.id);
+    return res.status(200).json({
+      success: true,
+      message: "Account deleted successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+
+}
 
