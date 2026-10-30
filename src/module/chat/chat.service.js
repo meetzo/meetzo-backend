@@ -24,6 +24,16 @@ const otherId = (chat, userId) =>
 const fail = (message, statusCode) => Object.assign(new Error(message), { statusCode });
 const windowMs = 15 * 60 * 1000;
 
+// The pinned date stays visible until 3h after it starts, then it's treated as gone.
+const DATE_VISIBLE_AFTER_START_MS = 3 * 60 * 60 * 1000;
+const DATE_MAX_AHEAD_MS = 90 * 24 * 60 * 60 * 1000;
+const activeDate = (chat) => 
+  chat.scheduledDate && chat.scheduledDate.startAt.getTime() + DATE_VISIBLE_AFTER_START_MS > Date.now()
+  ? chat.scheduledDate 
+  :null;
+
+
+
 const paging = (page, limit, defaultLimit) => {
   const p = Number(page);
   const l = Number(limit);
@@ -95,6 +105,7 @@ const publicChat = async (chat, userId) => {
     participants: chat.participants,
     otherParticipant: chat.participants.find((p) => idString(p) !== idString(userId)),
     unreadCount: state?.unreadCount || 0,
+    scheduledDate: activeDate(chat),
     isArchived: state?.isArchived || false,
     lastReadMessageId: state?.lastReadMessageId || null,
     lastReadAt: state?.lastReadAt || null,
@@ -559,4 +570,45 @@ export const getChatFeedService = async ({ userId, page, limit }) => {
   }));
 
   return { items, pagination: pagination(p, l, total) };
+};
+
+
+
+// Schedule a date in a matched chat. Only one active date per chat.
+export const scheduleDateService = async ({chatId, userId, startAt, place}) => {
+  if(typeof place !== "string" || !place.trim() || place.trim().length > 200){
+    throw fail ("place is required (max 200 charecters)", 400);
+  }
+
+const start = new Date(startAt);
+
+if (!startAt || Number.isNaN(start.getTime())) throw fail ("startAt must be valid date", 400); 
+if(start <= new Date()) throw fail("date must be in the future", 400);
+if (start - Date.now() > DATE_MAX_AHEAD_MS) throw fail ("date can be at most 90 days ahead", 400);
+
+const chat = await getParticipantChatService({chatId, userId, requireMatch: true });
+
+// condition + update in one atomic step : if both users schedue at once, only one wins
+const cutoff = new Date(Date.now() - DATE_VISIBLE_AFTER_START_MS);
+const updated = await ChatModel.findOneAndUpdate(
+  {_id: chat._id, $or: [{scheduledDat: null}, {"scheduledDate.startAt": {$lte: cutoff }}]},
+  {$set:{ scheduledDate: { startAt: start, place: place.trim(), scheduledBy: userId, scheduledAt: new Date() }}},
+  { new: true, runValidators: true },
+);
+
+if (!updated) throw fail("A date is already scheduled, cancle it first", 409);
+
+return {chatId: updated._id, participants: updated.participants, scheduledDate: updated.scheduledDate};
+};
+
+
+
+// Either participant can cancel the scheduled date.
+export const cancelDateService = async ({ chatId, userId}) => {
+  const chat = await getParticipantChatService({chatId, userId});
+  if(!activeDate(chat)) throw fail ("no date is scheduled", 404);
+
+  chat.scheduledDate = null;
+  await chat.save();
+  return {chatId: chat._id, participants: chat.participants, scheduledDate: null};
 };

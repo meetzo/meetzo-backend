@@ -14,8 +14,11 @@ import {
   getMessageViewersService,
   deleteMessageService,
   getChatFeedService,
+  scheduleDateService,
+  cancelDateService,
 } from "./chat.service.js";
 import { emitChatEvent, emitNewMessage, autoMarkChatAsRead } from "./chat.events.js";
+import { notifyUser } from "../notifications/notifications.service.js";
 import { deleteChatMediaService, uploadChatMediaService } from "./chatMedia.service.js";
 import ApiError from "../../utils/api.error.js";
 
@@ -201,3 +204,47 @@ export const deleteMessageController = async (req, res, next) => {
       message: data.deleteForEveryone ? "Message deleted for everyone" : "Message deleted for you", data });
   } catch (error) { next(error); }
 };
+
+
+// schedule a date controller 
+// Schedule a date (pinned bar for both users) and notify the other user.
+export const scheduleDateController = async (req, res, next) => {
+try{
+  const data = await scheduleDateService({
+    chatId: req.params.chatId, userId: req.user._id,
+    startAt: req.body?.startAt, place: req.body?.place,
+});
+
+emitChatEvent("chat:date", { chatId: data.chatId, scheduledData: data.scheduledDate}, data.participants);
+const other = data.participants.find((id) => String(id) !== String(req.user._id));
+notifyUser(other, {
+  title: "🎯Date Scheduled",
+  body: "open the chat to see when and where",
+  data: {type: "DATE_SCHEDULED", chatId: String(data.chatId)},
+});
+
+res.status(200).json({success: true, message: "Date scheduled", data });
+}catch (error){
+  next(error);
+};
+};
+
+
+//cancel and reschedule, either party can calcel and notify user
+export const cancelDateController = async (req, res, next) => {
+  try{
+    const data = await cancelDateService({chatId: req.params.chatId, userId: req.user._id});
+
+    emitChatEvent("chat:date", {chatId: data.chatId, scheduledDate: null}, data.participants);
+    const other = data.participants.find((id) => String(id) !== String(req.user._id));
+    notifyUser(other, {
+    title: "🎯Date CANCELLED",
+    body: "your scheduled date was cancelled",
+    data: {type: "DATE_CANCELLED", chatId: String(data.chatId)},
+});
+
+res.status(200).json({success: true, message: "Date Cancelled", data });
+  }catch(error){
+    next(error);
+  }
+}

@@ -160,7 +160,16 @@ const chatSchema = new mongoose.Schema(
      */
     isActive: {
       type: Boolean,
-      default: true,
+      default: true
+    },
+    scheduledDate: {
+      type: {
+         startAt: { type: Date, required: true },
+         place: {type: String, required: true, trim: true, maxlength: 200},
+         scheduledBy: {type: mongoose.Types.ObjectId, ref: "User", required: true},
+         scheduledAt: {type: Date, default: Date.now}
+      },
+      default: null
     },
   },
   {

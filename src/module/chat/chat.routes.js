@@ -15,7 +15,9 @@ import {
   editMessageController,
   deleteMessageController,
   sendChatMediaController,
-  getallchatscontroller
+  getallchatscontroller,
+  scheduleDateController,
+  cancelDateController
 } from "./chat.controller.js";
 
 const router = express.Router();
@@ -24,21 +26,25 @@ const router = express.Router();
 router.use(isAuthenticated, requireChatAuth);
 
 // Access creates/retrieves a matched pair; inbox/history are per-user views.
-router.post("/create_chat/:targetUserId",isAuthenticated, accessChatController);
-router.get("/", isAuthenticated, getUserChatsController);
-router.get("/feed", isAuthenticated,  getallchatscontroller)
+router.post("/create_chat/:targetUserId", accessChatController);
+router.get("/", getUserChatsController);
+router.get("/feed", getallchatscontroller)
 // Legacy multipart endpoint retained; normal message sends are text-only.
 router.post("/:chatId/media", uploadChatMedia, sendChatMediaController);
-router.get("/:chatId", isAuthenticated,  getChatByIdController);
-router.get("/messages/:chatId",  isAuthenticated,  getChatMessagesController);
-router.post("/send_message/:chatId", isAuthenticated,  sendMessageController);
+router.get("/:chatId", getChatByIdController);
+router.get("/messages/:chatId",  getChatMessagesController);
+router.post("/send_message/:chatId",  sendMessageController);
 // Receipt and archive operations act on the authenticated participant's state.
-router.patch("/delivered/:chatId",  isAuthenticated, markChatAsDeliveredController);
-router.patch("/read/:chatId", isAuthenticated,  markChatAsReadController);
-router.patch("/archive/:chatId", isAuthenticated,  archiveChatController);
+router.patch("/delivered/:chatId",  markChatAsDeliveredController);
+router.patch("/read/:chatId",  markChatAsReadController);
+router.patch("/archive/:chatId",  archiveChatController);
 // Message deletion defaults to "for me" unless deleteForEveryone is true.
-router.patch("/message/:messageId", isAuthenticated,  editMessageController);
-router.delete("/message/:messageId", isAuthenticated,  deleteMessageController);
-router.delete("/:chatId", isAuthenticated,  deleteChatController);
+router.patch("/message/:messageId",  editMessageController);
+router.delete("/message/:messageId", deleteMessageController);
+router.delete("/:chatId",  deleteChatController);
+
+// schedule date Routes
+router.put("/date/:chatId", scheduleDateController);
+router.delete("/date/:chatId",  cancelDateController);
 
 export default router;
